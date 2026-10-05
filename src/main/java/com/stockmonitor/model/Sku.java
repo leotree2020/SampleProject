@@ -8,6 +8,8 @@ public class Sku {
     public String name;
     public String color;
     public String capacity;
+    /** 可选：购买页上「选型号」那一步要点的型号名（如 "iPhone 18 Pro"）；留空则跳过这一步。 */
+    public String model;
     public boolean enabled = true;
     /** 可选：有货时打开的购买链接；留空则使用型号产品页。 */
     public String buyUrl;

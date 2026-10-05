@@ -39,18 +39,53 @@ class AutoCheckoutTest {
                 + "<label role='radio' onclick=\"fetch('/picked-color')\">ナイトスカイ</label>"
                 + "<label role='radio' onclick=\"fetch('/picked-capacity')\">256GB</label>"
                 + "<button onclick=\"location='/bag?added=1'\">バッグに追加</button>");
-        page("/real", "<h1>iPhone 18 Proを購入</h1>"
-                + "<button>詳細を表示</button>"
-                + "<label onclick=\"rec('color')\">バーガンディ</label><label onclick=\"rec('wrong-color')\">ブラック</label>"
-                + "<label onclick=\"rec('cap')\">256GB <sup>脚注 1</sup> 219,800円から 、または6,105円/月 月額 の36回払いから</label>"
-                + "<label onclick=\"rec('wrong-cap')\">512GB <sup>脚注 1</sup> 254,800円から</label>"
-                + "<button onclick=\"rec('tradein')\">下取りを利用しない</button>"
-                + "<label onclick=\"rec('sim')\">SIMフリー あとで通信キャリアと接続する</label>"
-                + "<label onclick=\"rec('pay')\">ペイディあと払いプランApple専用 金利0%の分割払いで購入できます。</label>"
-                + "<button onclick=\"rec('care')\">AppleCareによる保証を追加しない</button>"
-                + "<button onclick=\"rec('continue')\">続ける</button>"
-                + "<a onclick=\"rec('combo-wrong')\">256GB 脚注 1 ブラック 239,800円</a>"
-                + "<script>function rec(n){fetch('/rec?n='+n)}</script>");
+        // 复刻 Apple 日本站 iPhone 购买页的真实结构（取自一次真实运行保存的页面源码）：
+        // 逐步解锁的单选框（型号→颜色→容量→下取り→支付→运营商→AppleCare），前一步没选，后面全是 disabled；
+        // 型号名里是不换行空格，容量是「256」「GB」分开的两段，页面里还有同名的干扰链接。
+        page("/real", """
+                <h1>iPhone 18 Proを購入</h1>
+                <a href="#" onclick="rec('nav-wrong');return false">iPhone 18 Pro</a>
+                <div data-analytics-section="dimensionScreensize">
+                  <input type="radio" name="m" id="m1" data-g="m"><label for="m1"><span>iPhone&nbsp;18&nbsp;Pro</span> 6.3インチディスプレイ 219,800円から</label>
+                  <input type="radio" name="m" id="m2" data-g="m"><label for="m2"><span>iPhone&nbsp;18&nbsp;Pro&nbsp;Max</span> 6.9インチディスプレイ 239,800円から</label>
+                </div>
+                <div data-analytics-section="dimensionColor">
+                  <input type="radio" name="c" id="c-burgundy" data-g="c" disabled><label for="c-burgundy"><span>バーガンディ</span></label>
+                  <input type="radio" name="c" id="c-black" data-g="c" disabled><label for="c-black"><span>ブラック</span></label>
+                </div>
+                <div data-analytics-section="dimensionCapacity">
+                  <input type="radio" name="cap" id="cap-256" data-g="cap" disabled><label for="cap-256"><span>256</span> <span>GB</span> <span>脚注 1</span> 219,800円から</label>
+                  <input type="radio" name="cap" id="cap-512" data-g="cap" disabled><label for="cap-512"><span>512</span> <span>GB</span> <span>脚注 1</span> 254,800円から</label>
+                </div>
+                <div data-analytics-section="tradein">
+                  <input type="radio" name="t" id="t-yes" data-g="t" disabled><label for="t-yes">下取りを追加する</label>
+                  <input type="radio" name="t" id="t-no" data-g="t" disabled><label for="t-no">下取りを利用しない</label>
+                </div>
+                <div data-analytics-section="paymentOptions">
+                  <input type="radio" name="pay" id="pay-full" data-g="pay" disabled><label for="pay-full">一括払いまたはそのほかの支払い方法 254,800円</label>
+                  <input type="radio" name="pay" id="pay-finance" data-g="pay" disabled><label for="pay-finance">ペイディあと払いプランApple専用 7,077円/月の36回払い</label>
+                </div>
+                <div data-analytics-section="carrierModel">
+                  <input type="radio" name="sim" id="sim-docomo" data-g="sim" disabled><label for="sim-docomo">ドコモ 通信キャリア割引</label>
+                  <input type="radio" name="sim" id="sim-free" data-g="sim" disabled><label for="sim-free">SIMフリー あとで通信キャリアと接続する</label>
+                </div>
+                <div data-analytics-section="applecare">
+                  <input type="radio" name="care" id="care-plan" data-g="care" disabled><label for="care-plan">AppleCare+ 盗難・紛失プラン</label>
+                  <input type="radio" name="care" id="care-no" data-g="care" disabled><label for="care-no">AppleCareによる保証を追加しない</label>
+                </div>
+                <div data-analytics-section="summary"><button id="cont" disabled onclick="rec('continue')">続ける</button></div>
+                <a href="#" onclick="rec('combo-wrong');return false">256GB 脚注 1 ブラック 239,800円</a>
+                <script>
+                  function rec(n){fetch('/rec?n='+n)}
+                  const simFirst = new URLSearchParams(location.search).get('o') === 'simfirst';
+                  const order = simFirst ? ['m','c','cap','t','sim','pay','care'] : ['m','c','cap','t','pay','sim','care'];
+                  document.querySelectorAll('input[type=radio]').forEach(i => i.addEventListener('change', () => {
+                    rec(i.id);
+                    const next = order[order.indexOf(i.dataset.g) + 1];
+                    if (next) { document.querySelectorAll('input[data-g=' + next + ']').forEach(x => x.disabled = false); }
+                    else { document.getElementById('cont').disabled = false; }
+                  }));
+                </script>""");
         server.createContext("/rec", ex -> {
             hits.add(ex.getRequestURI().toString());
             ex.sendResponseHeaders(200, -1);
@@ -194,8 +229,8 @@ class AutoCheckoutTest {
     void emptyPlaceholderIsRejected() {
         AvailabilityEvent ev = event(sku("", "256GB"));
         assertThrows(IllegalStateException.class, () -> AutoCheckout.expand("{color}", ev.sku(), ev, true));
-        assertEquals("256GB", AutoCheckout.expand("{capacity}", ev.sku(), ev, true));
-        assertEquals("iPhone 18 Pro \\(256GB\\)", AutoCheckout.jsQuote("iPhone 18 Pro (256GB)"));
+        assertEquals("256\\s*GB", AutoCheckout.expand("{capacity}", ev.sku(), ev, true));
+        assertEquals("iPhone\\s+18\\s+Pro\\s+\\(256\\s*GB\\)", AutoCheckout.jsQuote("iPhone 18 Pro (256GB)"));
     }
 
     @Test
@@ -296,9 +331,8 @@ class AutoCheckoutTest {
         assertTrue(hits.contains("/forced"), "被遮挡时应改用脚本点击: " + hits);
     }
 
-    @Test
-    void shippedStepsWorkOnPageWithRealAppleTexts() throws Exception {
-        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+    /** 用要发给用户的那份示例配置里的步骤，在复刻真实结构的页面上跑一遍，返回依次被选中的控件。 */
+    private AutoCheckout.Outcome runShippedStepsOnRealPage(String query, List<String> clickedOut) throws Exception {
         AppConfig parsed = com.stockmonitor.config.ConfigManager.parse(
                 Files.readString(Path.of("application-example.yml"), StandardCharsets.UTF_8));
         AppConfig.Checkout c = parsed.purchase.checkout;
@@ -309,12 +343,41 @@ class AutoCheckoutTest {
         c.screenshotDir = base.screenshotDir;
         c.defaultTimeoutMs = 3000;
         c.steps.clear(); // 购物袋里的数量下拉框在这个模拟页面上不存在
-        c.unitSteps.get(0).value = base() + "/real";
+        c.unitSteps.get(0).value = base() + "/real" + query;
         Sku sku = sku("ブラック", "256GB");
-        assertEquals(AutoCheckout.Outcome.SUBMITTED, new AutoCheckout(c).run(event(sku)));
-        List<String> clicked = hits.stream().filter(h -> h.startsWith("/rec")).toList();
-        // ブラック 这一步点的应该是文字恰好为「ブラック」的那个选项，容量则点「256GB…」选项，而不是下面的组合项
-        assertEquals(List.of("/rec?n=wrong-color", "/rec?n=cap", "/rec?n=tradein", "/rec?n=sim",
-                "/rec?n=pay", "/rec?n=care", "/rec?n=continue"), clicked);
+        sku.model = "iPhone 18 Pro";
+        AutoCheckout.Outcome o = new AutoCheckout(c).run(event(sku));
+        hits.stream().filter(h -> h.startsWith("/rec?n=")).map(h -> h.substring("/rec?n=".length())).forEach(clickedOut::add);
+        return o;
+    }
+
+    @Test
+    void shippedStepsWorkOnRealStructure() throws Exception {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        List<String> clicked = new ArrayList<>();
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, runShippedStepsOnRealPage("", clicked));
+        // 型号 → 颜色(ブラック) → 容量(256 GB) → 下取りを利用しない → 一括払い（不是分期）→ SIMフリー → AppleCare不加 → 続ける
+        assertEquals(List.of("m1", "c-black", "cap-256", "t-no", "pay-full", "sim-free", "care-no", "continue"), clicked);
+    }
+
+    @Test
+    void shippedStepsWorkWhenCarrierComesBeforePayment() throws Exception {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        List<String> clicked = new ArrayList<>();
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, runShippedStepsOnRealPage("?o=simfirst", clicked));
+        assertEquals(List.of("m1", "c-black", "cap-256", "t-no", "sim-free", "pay-full", "care-no", "continue"), clicked);
+    }
+
+    @Test
+    void clickingADisabledOptionFailsHonestly() {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        AppConfig.Checkout c = cfg(false);
+        c.steps.clear();
+        // 不先选型号就直接点颜色：此时颜色是灰色禁用的，必须如实报错，而不是假装成功
+        AppConfig.Step color = step("click", "ブラック", null, false, false);
+        color.within = "[data-analytics-section='dimensionColor']";
+        c.unitSteps = new ArrayList<>(List.of(step("goto", null, base() + "/real", false, false), color));
+        assertEquals(AutoCheckout.Outcome.FAILED, new AutoCheckout(c).run(event(sku("ブラック", "256GB"))));
+        assertTrue(hits.stream().noneMatch(h -> h.startsWith("/rec?n=c-")), "不应有任何颜色被选中: " + hits);
     }
 }

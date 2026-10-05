@@ -51,7 +51,10 @@ monitor:
       product-page-path: /shop/buy-iphone/iphone-18-pro
       skus:
         - part-number: "MJR54J/A"      # 你提供的部件号（官网查到的真实值）
-          name: "iPhone 18 Pro (MJR54J/A)"
+          name: "iPhone 18 Pro 256GB ブラック"
+          model: "iPhone 18 Pro"       # 购买页「选型号」那一步要点的卡片（Pro / Pro Max）
+          color: "ブラック"
+          capacity: "256GB"
           enabled: true
 
 # ===== 有货后的辅助抢购 =====
@@ -78,21 +81,52 @@ purchase:
     # 某一步找不到按钮时，程序会截图并停下，浏览器窗口保持打开，由你接手。
     #
     # unit-steps：每台都走一遍（打开购买页 → 选配置 → 続ける），重复 quantity 遍。
+    #
+    # Apple 的购买页是「逐步解锁」的：选完上一项，下一项才可点（灰色=禁用）。18 Pro 页面的顺序是
+    # 型号 → 颜色 → 容量 → 下取り → 支付方式 → SIMフリー → AppleCare → 続ける。
+    # within 把查找限制在页面上对应的区域里，避免点到别处同名的元素。
+    # 「支付方式」和「SIMフリー」各写了两遍：不同机型这两项的先后顺序可能不同，先出现的先点，没解锁的会被跳过。
     unit-steps:
       - action: goto               # 打开购买页
-      - action: click              # 选颜色（SKU 里填 color，如 "ナイトスカイ"）
+      - action: click              # 选型号（仅 18 Pro 这类有「选型号」一步的页面；SKU 里填 model，没填就跳过）
+        within: "[data-analytics-section='dimensionScreensize']"
+        text: "{model}"
+        optional: true
+        timeout-ms: 2500
+      - action: click              # 选颜色（SKU 里的 color，须和页面上的文字一致，如 "スターホワイト"）
+        within: "[data-analytics-section='dimensionColor']"
         text: "{color}"
-      - action: click              # 选容量（SKU 里填 capacity，如 "256GB"）
+      - action: click              # 选容量（SKU 里的 capacity，如 "256GB"）
+        within: "[data-analytics-section='dimensionCapacity']"
         text: "{capacity}"
       - action: click              # 下取りを利用しない
+        within: "[data-analytics-section='tradein']"
         text: "下取りを利用しない"
+      - action: click              # 支付方式：一括（一括払い）。注意：「ペイディあと払いプラン」是分期，不要选
+        within: "[data-analytics-section='paymentOptions']"
+        text: "一括あと払いプラン|一括払い"
+        optional: true
+        timeout-ms: 3000
       - action: click              # SIMフリー
+        within: "[data-analytics-section='carrierModel']"
         text: "SIMフリー"
-      - action: click              # 「あと払いプランApple専用」（18 Pro 页面上写作「ペイディあと払いプランApple専用」，Duo 写作「一括あと払いプランApple専用」，这样两种都能匹配）
-        text: "あと払いプラン"
+        optional: true
+        timeout-ms: 3000
+      - action: click              # （再点一次支付方式：若上一轮因为顺序没解锁而被跳过）
+        within: "[data-analytics-section='paymentOptions']"
+        text: "一括あと払いプラン|一括払い"
+        optional: true
+        timeout-ms: 3000
+      - action: click              # （再点一次 SIMフリー，同上）
+        within: "[data-analytics-section='carrierModel']"
+        text: "SIMフリー"
+        optional: true
+        timeout-ms: 3000
       - action: click              # AppleCareによる保証を追加しない
+        within: "[data-analytics-section='applecare']"
         text: "AppleCareによる保証を追加しない"
       - action: click              # 続ける（进入结算页面）
+        within: "[data-analytics-section='summary']"
         text: "続ける"
       - action: wait
         value: "1500"

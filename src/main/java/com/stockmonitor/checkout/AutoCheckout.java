@@ -196,10 +196,11 @@ public class AutoCheckout {
             return page.locator(expand(step.selector, sku, event, false)).first();
         }
         String raw = expand(step.text, sku, event, true);
-        Locator contains = page.locator(CLICKABLE)
-                .filter(new Locator.FilterOptions().setHasText(Pattern.compile(raw))).first();
+        Locator scope = step.within != null && !step.within.isBlank()
+                ? page.locator(step.within).locator(CLICKABLE) : page.locator(CLICKABLE);
+        Locator contains = scope.filter(new Locator.FilterOptions().setHasText(Pattern.compile(raw))).first();
         // 同一个词常同时出现在选项按钮和「容量 + 颜色 + 价格」的组合项里：优先点文字完全等于它的那个
-        Locator exact = page.locator(CLICKABLE)
+        Locator exact = scope
                 .filter(new Locator.FilterOptions().setHasText(Pattern.compile("^\\s*(?:" + raw + ")\\s*$"))).first();
         try {
             exact.waitFor(new Locator.WaitForOptions().setTimeout(1500));
@@ -209,13 +210,35 @@ public class AutoCheckout {
         }
     }
 
-    /** 先正常点击；被遮挡、点不动时改用脚本触发点击。 */
+    private static final String IS_DISABLED_JS =
+            "el => { const c = el.control || el; return !!(c.disabled || c.getAttribute('aria-disabled') === 'true'); }";
+    private static final String IS_UNCHECKED_RADIO_JS =
+            "el => { const c = el.control; return !!(c && (c.type === 'radio' || c.type === 'checkbox') && !c.checked); }";
+
+    /**
+     * 先正常点击；被遮挡时改用脚本点击。脚本点击绝不点灰掉（disabled）的控件——那样什么都不会发生却看起来「成功」；
+     * 点完后如果是单选框，还会确认它真的被选中了，否则如实报错。
+     */
     private void clickWithFallback(Locator target, double timeout) {
         try {
             target.click(new Locator.ClickOptions().setTimeout(Math.min(timeout, 4000)));
         } catch (RuntimeException e) {
-            log.info("正常点击没成功（{}），改用脚本点击", firstLine(e));
-            target.evaluate("el => el.click()", null, new Locator.EvaluateOptions().setTimeout(timeout));
+            log.info("正常点击没成功（{}），检查后改用脚本点击", firstLine(e));
+            Locator.EvaluateOptions opts = new Locator.EvaluateOptions().setTimeout(timeout);
+            if (Boolean.TRUE.equals(target.evaluate(IS_DISABLED_JS, null, opts))) {
+                throw new IllegalStateException("目标选项当前是灰色禁用状态（前面的选项还没选好，或页面还没加载完）");
+            }
+            target.evaluate("el => el.click()", null, opts);
+        }
+        target.page().waitForTimeout(250);
+        Object unchecked;
+        try {
+            unchecked = target.evaluate(IS_UNCHECKED_RADIO_JS, null, new Locator.EvaluateOptions().setTimeout(1000));
+        } catch (RuntimeException e) {
+            return; // 点击触发了页面跳转（如「続ける」「バッグに追加」），元素已不在，无需也无法再确认
+        }
+        if (Boolean.TRUE.equals(unchecked)) {
+            throw new IllegalStateException("点击后该选项没有被选中");
         }
     }
 
@@ -227,6 +250,7 @@ public class AutoCheckout {
         String out = template;
         for (String[] e : List.of(
                 new String[]{"{color}", sku.color}, new String[]{"{capacity}", sku.capacity},
+                new String[]{"{model}", sku.model},
                 new String[]{"{partNumber}", sku.partNumber}, new String[]{"{name}", sku.name},
                 new String[]{"{buyUrl}", event.buyUrl()})) {
             String v = e[1] == null ? "" : e[1];
@@ -244,7 +268,10 @@ public class AutoCheckout {
      * 不支持 Java 的 \Q..\E，所以不能用 Pattern.quote。
      */
     static String jsQuote(String s) {
-        return s.replaceAll("[.*+?^${}()|\\[\\]\\\\/]", "\\\\$0");
+        return s.replaceAll("[.*+?^${}()|\\[\\]\\\\/]", "\\\\$0")
+                // 页面上常见「256 GB」「iPhone&nbsp;18&nbsp;Pro」这类带（不换行）空格的写法：数字和字母之间允许有空白，空格匹配任意空白
+                .replaceAll("(?<=\\d)(?=[A-Za-z])", "\\\\s*")
+                .replace(" ", "\\s+");
     }
 
     private String describe(AppConfig.Step s, Sku sku, AvailabilityEvent ev) {

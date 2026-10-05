@@ -155,6 +155,8 @@ public class AppConfig {
         public String action = "click";
         public String text;
         public String selector;
+        /** 可选：只在这个 CSS 区域内查找 text，如 "[data-analytics-section='dimensionColor']"，避免点到页面其他位置的同名元素。 */
+        public String within;
         public String value;
         public boolean optional = false;
         /** 标记为「提交订单」步骤，仅当 auto-submit: true 时才会执行。 */
