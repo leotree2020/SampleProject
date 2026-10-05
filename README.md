@@ -80,6 +80,18 @@ java -jar target/iphone-stock-monitor.jar /path/to/application.yml --model=iphon
 3. 保持电脑开着、浏览器登录状态有效、不进入睡眠；
 4. 到货后浏览器会自动打开购买页：选择型号 → 「バッグに追加」 → 「注文手続きへ」 → 确认下单。
 
+### 图形界面
+
+```bash
+java -jar target/iphone-stock-monitor.jar --gui --model=iphone-18-pro
+```
+
+- 没有 `application.yml` 时会自动用 `application-example.yml` 生成一份；
+- 顶部可切换型号、检查模式、间隔，以及「有货时自动打开购买页」；
+- 表格里可直接**编辑名称 / 部件号**、勾选启用，也可「添加 SKU / 删除选中」（改动仅在本次运行内有效，永久修改请编辑 `application.yml`）；
+- 「立即检查一次」先验证部件号和网络，「测试提醒」「打开购买页」可单独自测；
+- 状态列：绿色=有货，灰色=无货，橙色=无法判断/查询失败；下方实时显示日志与统计。
+
 ## 三、配置说明（application.yml）
 
 ### monitor

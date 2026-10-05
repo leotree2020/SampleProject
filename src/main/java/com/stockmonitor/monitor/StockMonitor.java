@@ -20,6 +20,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.function.Consumer;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -48,6 +50,7 @@ public class StockMonitor {
     private final Map<String, CheckResult> lastResult = new ConcurrentHashMap<>();
     private final Map<String, Long> lastNotifyAt = new ConcurrentHashMap<>();
     private final Set<String> stopped = ConcurrentHashMap.newKeySet();
+    private final List<Consumer<CheckResult>> listeners = new CopyOnWriteArrayList<>();
     private int consecutiveFailedRounds;
     private volatile boolean running;
 
@@ -67,6 +70,11 @@ public class StockMonitor {
             t.setDaemon(true);
             return t;
         });
+    }
+
+    /** 每条检查结果（含失败）产生后回调，供图形界面刷新；回调在检查线程中执行。 */
+    public void addListener(Consumer<CheckResult> listener) {
+        listeners.add(listener);
     }
 
     public void start() {
@@ -109,6 +117,7 @@ public class StockMonitor {
         int tabsOpened = 0;
         for (CheckResult r : results) {
             stats.recordCheck(r.isSuccess(), r.latencyMs());
+            listeners.forEach(l -> l.accept(r));
             if (!r.isSuccess()) {
                 failed++;
                 log.warn("{} 查询失败：{}", r.sku().displayName(), r.error());

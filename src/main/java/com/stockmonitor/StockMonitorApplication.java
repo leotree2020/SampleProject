@@ -40,6 +40,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * --once        只检查一轮并打印结果后退出（验证部件号/网络是否正常）
  * --test-notify 向所有已启用的提醒渠道发送一条测试消息后退出
  * --test-open   测试「有货时自动打开购买页」后退出
+ * --gui         打开图形界面
  */
 public final class StockMonitorApplication {
     private static final Logger log = LoggerFactory.getLogger(StockMonitorApplication.class);
@@ -51,6 +52,7 @@ public final class StockMonitorApplication {
         boolean once = false;
         boolean testNotify = false;
         boolean testOpen = false;
+        boolean gui = false;
         for (String a : args) {
             if (a.equals("--once")) {
                 once = true;
@@ -58,14 +60,20 @@ public final class StockMonitorApplication {
                 testNotify = true;
             } else if (a.equals("--test-open")) {
                 testOpen = true;
+            } else if (a.equals("--gui")) {
+                gui = true;
             } else if (a.startsWith("--model=")) {
                 modelArg = a.substring("--model=".length());
             } else if (a.equals("-h") || a.equals("--help")) {
-                System.out.println("用法: java -jar iphone-stock-monitor.jar [application.yml] [--model=KEY] [--once] [--test-notify] [--test-open]");
+                System.out.println("用法: java -jar iphone-stock-monitor.jar [application.yml] [--model=KEY] [--once] [--test-notify] [--test-open] [--gui]");
                 return;
             } else {
                 configPath = Path.of(a);
             }
+        }
+        if (Files.notExists(configPath) && gui && Files.exists(Path.of("application-example.yml"))) {
+            Files.copy(Path.of("application-example.yml"), configPath);
+            log.info("未找到 {}，已用 application-example.yml 生成", configPath);
         }
         if (Files.notExists(configPath)) {
             System.err.println("找不到配置文件 " + configPath.toAbsolutePath()
@@ -74,6 +82,17 @@ public final class StockMonitorApplication {
         }
 
         ConfigManager configs = new ConfigManager(configPath);
+        if (gui) {
+            if (java.awt.GraphicsEnvironment.isHeadless()) {
+                System.err.println("当前环境没有图形界面（headless），无法使用 --gui");
+                System.exit(1);
+            }
+            String initial = modelArg != null ? modelArg
+                    : !configs.get().monitor.activeModel.isBlank() ? configs.get().monitor.activeModel
+                    : configs.get().monitor.models.keySet().iterator().next();
+            com.stockmonitor.gui.MonitorFrame.launch(configs, initial);
+            return;
+        }
         configs.selectModel(chooseModel(configs.get(), modelArg));
         AppConfig cfg = configs.get();
 
