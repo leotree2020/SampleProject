@@ -54,8 +54,9 @@ public class AutoCheckout {
             Page page = ctx.pages().isEmpty() ? ctx.newPage() : ctx.pages().get(0);
             page.setDefaultTimeout(cfg.defaultTimeoutMs);
             int n = 0;
+            List<AppConfig.Step> plan = plan();
             try {
-                for (AppConfig.Step step : cfg.steps) {
+                for (AppConfig.Step step : plan) {
                     n++;
                     if (step.submit && !cfg.autoSubmit) {
                         log.warn("已执行到最后一步（第 {} 步 {}），但 auto-submit=false，停在下单前。请在浏览器中手动确认下单！",
@@ -65,10 +66,10 @@ public class AutoCheckout {
                     }
                     try {
                         execute(page, step, sku, event);
-                        log.info("结账步骤 {}/{} 完成：{}", n, cfg.steps.size(), describe(step, sku, event));
+                        log.info("结账步骤 {}/{} 完成：{}", n, plan.size(), describe(step, sku, event));
                     } catch (RuntimeException e) {
                         if (step.optional) {
-                            log.info("结账步骤 {}/{} 可选步骤跳过：{}", n, cfg.steps.size(), describe(step, sku, event));
+                            log.info("结账步骤 {}/{} 可选步骤跳过：{}", n, plan.size(), describe(step, sku, event));
                             continue;
                         }
                         throw e;
@@ -87,6 +88,17 @@ public class AutoCheckout {
             log.warn("无法启动自动结账浏览器：{}", firstLine(e));
             return Outcome.LAUNCH_FAILED;
         }
+    }
+
+    /** unit-steps 重复 quantity 遍，再接上只执行一次的 steps。 */
+    List<AppConfig.Step> plan() {
+        List<AppConfig.Step> all = new java.util.ArrayList<>();
+        int units = Math.max(1, cfg.quantity);
+        for (int i = 0; i < units; i++) {
+            all.addAll(cfg.unitSteps);
+        }
+        all.addAll(cfg.steps);
+        return all;
     }
 
     private BrowserContext launch(Playwright pw, boolean headless) {
@@ -147,9 +159,17 @@ public class AutoCheckout {
                 // 空值会让正则匹配到任意按钮，必须拒绝
                 throw new IllegalStateException("占位符 " + e[0] + " 为空，请在 SKU 中填写对应字段（color / capacity 等）");
             }
-            out = out.replace(e[0], asRegex ? Pattern.quote(v) : v);
+            out = out.replace(e[0], asRegex ? jsQuote(v) : v);
         }
         return out;
+    }
+
+    /**
+     * 转义正则元字符。Playwright 把 java.util.regex.Pattern 交给浏览器端的 JavaScript 正则执行，
+     * 不支持 Java 的 \Q..\E，所以不能用 Pattern.quote。
+     */
+    static String jsQuote(String s) {
+        return s.replaceAll("[.*+?^${}()|\\[\\]\\\\/]", "\\\\$0");
     }
 
     private String describe(AppConfig.Step s, Sku sku, AvailabilityEvent ev) {

@@ -138,6 +138,11 @@ public class AppConfig {
         public String executablePath = "";
         public int defaultTimeoutMs = 8000;
         public String screenshotDir = "data/screenshots";
+        /** 买几台：unit-steps 会重复执行这么多遍（每台走一遍完整的选配流程）。 */
+        public int quantity = 1;
+        /** 每台都要执行的步骤（打开购买页 → 选配置 → 続ける）；重复 quantity 遍。 */
+        public List<Step> unitSteps = new ArrayList<>();
+        /** 所有台数都选完后只执行一次的步骤（如进入结账页）。 */
         public List<Step> steps = new ArrayList<>();
     }
 

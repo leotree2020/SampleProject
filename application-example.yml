@@ -87,38 +87,32 @@ purchase:
     channel: ""                    # 可选：chrome / msedge，使用本机已安装的浏览器；留空用 Playwright 自带 Chromium
     executable-path: ""            # 可选：浏览器 exe 路径
     default-timeout-ms: 8000
-    # 点击步骤（以下按日本站页面文字推测，务必用真实页面核对后调整）。
-    # text 是正则，匹配按钮/链接/选项上的文字；{color} {capacity} 取自 SKU 的 color / capacity 字段，
-    # 对应的字段为空时，该步骤会报错（optional: true 的步骤则直接跳过）。
-    steps:
+    quantity: 1                    # 买几台：下面 unit-steps 会重复这么多遍（同一账号最多 2 台，请填 1 或 2）
+    # 点击步骤。text 是正则，匹配按钮/选项上的文字；{color} {capacity} 取自 SKU 的 color / capacity 字段。
+    # 某一步找不到按钮时，程序会截图并停下，浏览器窗口保持打开，由你接手。
+    #
+    # unit-steps：每台都走一遍（打开购买页 → 选配置 → 続ける），重复 quantity 遍。
+    unit-steps:
       - action: goto               # 打开购买页
       - action: click              # 选颜色（SKU 里填 color，如 "ナイトスカイ"）
         text: "{color}"
-        optional: true
       - action: click              # 选容量（SKU 里填 capacity，如 "256GB"）
         text: "{capacity}"
-        optional: true
-      - action: click              # 不选「下取り」
-        text: "下取りに出さない|下取りなし"
-        optional: true
-      - action: click              # 一括払い
-        text: "一括"
-        optional: true
-      - action: click              # 不加 AppleCare+
-        text: "AppleCare.*(加入しない|不要)|加入しない"
-        optional: true
-      - action: click              # 加入购物袋
-        text: "バッグに追加|カートに追加"
+      - action: click              # 下取りを利用しない
+        text: "下取りを利用しない"
+      - action: click              # SIMフリー
+        text: "SIMフリー"
+      - action: click              # 一括あと払いプランApple専用
+        text: "一括あと払いプラン"
+      - action: click              # AppleCareによる保証を追加しない
+        text: "AppleCareによる保証を追加しない"
+      - action: click              # 続ける（进入结算页面）
+        text: "続ける"
       - action: wait
         value: "1500"
-      - action: click              # 去结账
-        text: "ご注文手続き|注文手続き|チェックアウト"
-      - action: click              # 在结账页继续（如有）
-        text: "^続ける$|^次へ$"
-        optional: true
-      - action: click              # 最后一步：确认下单（仅 auto-submit: true 时才会执行）
-        text: "注文を確定|注文する|今すぐ注文"
-        submit: true
+    # steps：所有台数选完后只执行一次。默认留空 = 停在结算页面，由你自己核对并下单。
+    # 如需继续自动点击，在这里加步骤；标记 submit: true 的步骤只有在 auto-submit: true 时才会执行。
+    steps: []
 
 http:
   connect-timeout-seconds: 15

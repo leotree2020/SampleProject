@@ -36,11 +36,18 @@ class AutoCheckoutTest {
     void startServer() throws Exception {
         server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
         page("/product", "<h1>iPhone</h1>"
-                + "<label role='radio' onclick=\"document.title='c'\">ナイトスカイ</label>"
-                + "<label role='radio'>256GB</label>"
+                + "<label role='radio' onclick=\"fetch('/picked-color')\">ナイトスカイ</label>"
+                + "<label role='radio' onclick=\"fetch('/picked-capacity')\">256GB</label>"
                 + "<button onclick=\"location='/bag?added=1'\">バッグに追加</button>");
         page("/bag", "<h1>Bag</h1><a href='/checkout'>ご注文手続きへ</a>");
         page("/checkout", "<h1>Checkout</h1><button onclick=\"fetch('/placed');document.body.append('done')\">注文を確定</button>");
+        for (String p : new String[]{"/picked-color", "/picked-capacity"}) {
+            server.createContext(p, ex -> {
+                hits.add(p);
+                ex.sendResponseHeaders(200, -1);
+                ex.close();
+            });
+        }
         server.createContext("/placed", ex -> {
             hits.add("placed");
             ex.sendResponseHeaders(200, -1);
@@ -125,6 +132,7 @@ class AutoCheckoutTest {
         AutoCheckout.Outcome o = new AutoCheckout(cfg(false)).run(event(sku("ナイトスカイ", "256GB")));
         assertEquals(AutoCheckout.Outcome.STOPPED_BEFORE_SUBMIT, o);
         assertTrue(hits.contains("/checkout"), "应已走到结账页: " + hits);
+        assertTrue(hits.contains("/picked-color") && hits.contains("/picked-capacity"), "颜色和容量应已被点中: " + hits);
         assertTrue(!hits.contains("placed"), "auto-submit=false 时不能提交订单");
     }
 
@@ -148,6 +156,24 @@ class AutoCheckoutTest {
     void emptyPlaceholderIsRejected() {
         AvailabilityEvent ev = event(sku("", "256GB"));
         assertThrows(IllegalStateException.class, () -> AutoCheckout.expand("{color}", ev.sku(), ev, true));
-        assertEquals("\\Q256GB\\E", AutoCheckout.expand("{capacity}", ev.sku(), ev, true));
+        assertEquals("256GB", AutoCheckout.expand("{capacity}", ev.sku(), ev, true));
+        assertEquals("iPhone 18 Pro \\(256GB\\)", AutoCheckout.jsQuote("iPhone 18 Pro (256GB)"));
+    }
+
+    @Test
+    void unitStepsRepeatForQuantity() {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        AppConfig.Checkout c = cfg(false);
+        c.quantity = 2;
+        c.unitSteps = new ArrayList<>(List.of(
+                step("goto", null, null, false, false),
+                step("click", "{color}", null, false, false),
+                step("click", "バッグに追加", null, false, false)));
+        c.steps = new ArrayList<>(List.of(step("click", "ご注文手続き", null, false, false)));
+        AutoCheckout.Outcome o = new AutoCheckout(c).run(event(sku("ナイトスカイ", "256GB")));
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, o);
+        assertEquals(2, hits.stream().filter("/product"::equals).count(), "每台都应重新打开购买页: " + hits);
+        assertEquals(7, new AutoCheckout(c).plan().size()); // 3 个步骤 × 2 台 + 1 个收尾步骤
+        assertTrue(!hits.contains("placed"));
     }
 }
