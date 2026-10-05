@@ -36,6 +36,26 @@ public class AutoCheckout {
 
     /** 打开浏览器让你手动登录 Apple ID、确认地址与支付方式，关闭窗口即保存会话。 */
     public void interactiveLogin(String url) {
+        Path exe = findBrowser();
+        if (exe != null) {
+            // 用没有任何自动化控制的普通浏览器窗口登录（Apple 登录框在被控制的窗口里可能一直转圈），
+            // 登录状态保存在同一个 profile 目录里，之后自动结账会读取它。
+            try {
+                Path profile = Paths.get(cfg.profileDir).toAbsolutePath();
+                Files.createDirectories(profile);
+                Process p = new ProcessBuilder(exe.toString(), "--user-data-dir=" + profile,
+                        "--no-first-run", "--no-default-browser-check", url).inheritIO().start();
+                log.info("已用普通浏览器窗口打开：{}。请登录 Apple ID，确认配送地址与支付方式，完成后【关闭这个浏览器窗口】。", exe.getFileName());
+                p.waitFor();
+                log.info("登录窗口已关闭，会话已保存到 {}", profile);
+                return;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return;
+            } catch (Exception e) {
+                log.warn("无法启动普通浏览器窗口（{}），改用自动化浏览器登录", e.getMessage());
+            }
+        }
         try (Playwright pw = Playwright.create()) {
             BrowserContext ctx = launch(pw, false);
             Page page = ctx.pages().isEmpty() ? ctx.newPage() : ctx.pages().get(0);
@@ -88,6 +108,35 @@ public class AutoCheckout {
             log.warn("无法启动自动结账浏览器：{}", firstLine(e));
             return Outcome.LAUNCH_FAILED;
         }
+    }
+
+    /** 找到本机已安装的浏览器（executable-path 优先，其次按 channel 在常见安装位置查找）。 */
+    Path findBrowser() {
+        if (cfg.executablePath != null && !cfg.executablePath.isBlank()) {
+            Path p = Paths.get(cfg.executablePath);
+            return Files.isRegularFile(p) ? p : null;
+        }
+        List<String> candidates = switch (cfg.channel == null ? "" : cfg.channel) {
+            case "msedge" -> List.of(
+                    "C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge.exe",
+                    "C:\\Program Files\\Microsoft\\Edge\\Application\\msedge.exe",
+                    "/Applications/Microsoft Edge.app/Contents/MacOS/Microsoft Edge",
+                    "/usr/bin/microsoft-edge");
+            case "chrome" -> List.of(
+                    "C:\\Program Files\\Google\\Chrome\\Application\\chrome.exe",
+                    "C:\\Program Files (x86)\\Google\\Chrome\\Application\\chrome.exe",
+                    System.getenv("LOCALAPPDATA") + "\\Google\\Chrome\\Application\\chrome.exe",
+                    "/Applications/Google Chrome.app/Contents/MacOS/Google Chrome",
+                    "/usr/bin/google-chrome");
+            default -> List.of();
+        };
+        for (String c : candidates) {
+            Path p = Paths.get(c);
+            if (Files.isRegularFile(p)) {
+                return p;
+            }
+        }
+        return null;
     }
 
     /** unit-steps 重复 quantity 遍，再接上只执行一次的 steps。 */
