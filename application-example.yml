@@ -12,7 +12,7 @@ monitor:
   base-url: https://www.apple.com/jp
   buyability-path: /shop/buyability-message
   fulfillment-path: /shop/fulfillment-messages
-  check-mode: fulfillment          # fulfillment(推荐,含配送日期+门店取货) | buyability(仅线上可购,最轻量) | product-page(HTML兜底)
+  check-mode: buyability           # buyability(默认,只判断线上可购,最轻量) | fulfillment(含配送日期+门店取货,风控较严,被拦时会自动降级) | product-page(HTML兜底)
   postal-code: "100-0005"          # 你的日本邮编，用于查询配送日期与附近门店（例：东京站周边 100-0005）
   stores:                          # 门店号，用于查询到店取货（第一个为中心，附近门店会一并返回）
     - R079                         # Apple 銀座（其它门店号见 README「如何获取门店号」）
@@ -37,28 +37,14 @@ monitor:
     iphone-duo:
       name: "iPhone Duo"
       product-page-path: /shop/buy-iphone/iphone-duo
-      # ⚠️ 下面的部件号是占位符！请按 README「如何获取部件号」替换为真实值（日本区以 J/A 结尾）
+      # 固定监控并自动购买的配置：MK244J/A = スターホワイト 256GB（部件号来自官网）。
+      # 想加其他颜色/容量时，复制下面一段，换成真实部件号后设 enabled: true。
       skus:
-        - part-number: "MXXA1J/A"
+        - part-number: "MK244J/A"
           name: "iPhone Duo 256GB スターホワイト"
           color: "スターホワイト"
           capacity: "256GB"
           enabled: true
-        - part-number: "MXXA2J/A"
-          name: "iPhone Duo 256GB ナイトスカイ"
-          color: "ナイトスカイ"
-          capacity: "256GB"
-          enabled: true
-        - part-number: "MXXA3J/A"
-          name: "iPhone Duo 512GB スターホワイト"
-          color: "スターホワイト"
-          capacity: "512GB"
-          enabled: false
-        - part-number: "MXXA4J/A"
-          name: "iPhone Duo 512GB ナイトスカイ"
-          color: "ナイトスカイ"
-          capacity: "512GB"
-          enabled: false
           # buy-url: "https://www.apple.com/jp/shop/buy-iphone/iphone-duo"  # 可选：有货时打开的自定义链接
     iphone-18-pro:
       name: "iPhone 18 Pro"
@@ -80,14 +66,14 @@ purchase:
   # 遇到验证码 / 3D Secure 等环节，窗口会保持打开，由你接手。
   # ⚠️ Apple 条款禁止自动下单，可能导致订单被取消或账号被限购，风险自负。
   checkout:
-    enabled: false                 # 总开关：true 才会在有货时自动结账
-    auto-submit: false             # 最后的「确认下单」默认不点，只停在按钮前；确认流程可靠后再改为 true
+    enabled: true                  # 总开关：true 才会在有货时自动结账（使用前先运行一次 --login 保存登录会话）
+    auto-submit: false             # 到结算页面就停下，由你本人核对并下单；这里保持 false
     profile-dir: data/browser-profile   # 浏览器配置文件（保存登录会话），不要提交到 git
     headless: false                # 保持 false，方便你随时接手
     channel: ""                    # 可选：chrome / msedge，使用本机已安装的浏览器；留空用 Playwright 自带 Chromium
     executable-path: ""            # 可选：浏览器 exe 路径
     default-timeout-ms: 8000
-    quantity: 1                    # 买几台：下面 unit-steps 会重复这么多遍（同一账号最多 2 台，请填 1 或 2）
+    quantity: 2                    # 买几台：下面 unit-steps 会重复这么多遍（同一账号最多 2 台，请填 1 或 2）
     # 点击步骤。text 是正则，匹配按钮/选项上的文字；{color} {capacity} 取自 SKU 的 color / capacity 字段。
     # 某一步找不到按钮时，程序会截图并停下，浏览器窗口保持打开，由你接手。
     #
