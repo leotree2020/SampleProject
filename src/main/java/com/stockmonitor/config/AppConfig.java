@@ -131,6 +131,8 @@ public class AppConfig {
         /** 最后一步（submit: true）默认不执行，只停在「确认下单」按钮前；设为 true 才会真正提交订单。 */
         public boolean autoSubmit = false;
         public String profileDir = "data/browser-profile";
+        /** true（默认）：每次自动结账都用全新干净的浏览器环境（相当于无痕窗口），结束后删除。登录和付款由你在结算页手动完成。 */
+        public boolean freshProfile = true;
         public boolean headless = false;
         /** 可选：chrome / msedge，使用本机已安装的浏览器；留空使用 Playwright 自带 Chromium。 */
         public String channel = "";

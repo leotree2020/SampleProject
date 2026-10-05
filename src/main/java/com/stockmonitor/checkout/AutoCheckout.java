@@ -13,9 +13,11 @@ import com.stockmonitor.model.Sku;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Pattern;
 
@@ -58,7 +60,7 @@ public class AutoCheckout {
             }
         }
         try (Playwright pw = Playwright.create()) {
-            BrowserContext ctx = launch(pw, false);
+            BrowserContext ctx = launch(pw, false, Paths.get(cfg.profileDir));
             Page page = ctx.pages().isEmpty() ? ctx.newPage() : ctx.pages().get(0);
             page.navigate(url);
             log.info("请在打开的浏览器中登录 Apple ID，并确认配送地址与支付方式。完成后关闭浏览器窗口即可。");
@@ -68,10 +70,55 @@ public class AutoCheckout {
         }
     }
 
+    /**
+     * 每次自动结账默认使用全新干净的浏览器环境（相当于无痕窗口）：
+     * 反复使用的同一个配置文件夹会积累登录失败、一次性令牌等残留状态，实测会让 Apple 的「加入购物袋」一直返回 404，
+     * 而干净环境正常。登录和付款本来就是你在结算页自己完成的步骤，不需要程序保存登录状态。
+     */
+    private Path runProfile() {
+        Path base = Paths.get(cfg.profileDir).toAbsolutePath();
+        if (!cfg.freshProfile) {
+            return base;
+        }
+        Path parent = base.getParent();
+        String prefix = base.getFileName() + "-run-";
+        try {
+            Files.createDirectories(parent);
+            try (var siblings = Files.list(parent)) {
+                siblings.filter(p -> p.getFileName().toString().startsWith(prefix)).forEach(this::deleteQuietly);
+            }
+        } catch (IOException ignored) {
+        }
+        return parent.resolve(prefix + System.currentTimeMillis());
+    }
+
+    private void deleteQuietly(Path dir) {
+        try (var walk = Files.walk(dir)) {
+            walk.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.delete(p);
+                } catch (IOException ignored) {
+                }
+            });
+        } catch (IOException ignored) {
+        }
+    }
+
     public Outcome run(AvailabilityEvent event) {
+        Path profile = runProfile();
+        try {
+            return runWith(profile, event);
+        } finally {
+            if (cfg.freshProfile) {
+                deleteQuietly(profile);
+            }
+        }
+    }
+
+    private Outcome runWith(Path profile, AvailabilityEvent event) {
         Sku sku = event.sku();
         try (Playwright pw = Playwright.create()) {
-            BrowserContext ctx = launch(pw, cfg.headless);
+            BrowserContext ctx = launch(pw, cfg.headless, profile);
             Page page = ctx.pages().isEmpty() ? ctx.newPage() : ctx.pages().get(0);
             page.setDefaultTimeout(cfg.defaultTimeoutMs);
             int n = 0;
@@ -155,7 +202,7 @@ public class AutoCheckout {
         return all;
     }
 
-    private BrowserContext launch(Playwright pw, boolean headless) {
+    private BrowserContext launch(Playwright pw, boolean headless, Path profile) {
         BrowserType.LaunchPersistentContextOptions opts = new BrowserType.LaunchPersistentContextOptions()
                 .setHeadless(headless)
                 .setLocale("ja-JP")
@@ -166,7 +213,7 @@ public class AutoCheckout {
         } else if (cfg.channel != null && !cfg.channel.isBlank()) {
             opts.setChannel(cfg.channel);
         }
-        return pw.chromium().launchPersistentContext(Paths.get(cfg.profileDir), opts);
+        return pw.chromium().launchPersistentContext(profile, opts);
     }
 
     void execute(Page page, AppConfig.Step step, Sku sku, AvailabilityEvent event) {

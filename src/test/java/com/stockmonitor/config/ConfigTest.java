@@ -38,10 +38,12 @@ class ConfigTest {
         assertTrue(co.enabled);
         assertFalse(co.autoSubmit);
         assertEquals(1, co.quantity);
-        assertEquals(2, co.steps.size());
-        assertEquals("select", co.steps.get(0).action);
-        assertEquals("2", co.steps.get(0).value);
-        assertEquals("click", co.steps.get(1).action);
+        assertTrue(co.freshProfile); // 每次用全新干净的浏览器环境，避免残留状态让 Apple 返回 404
+        // 加入购物袋之后：配件页点「バッグを確認」→ 进购物袋 → 数量选 2 → 点「ご注文手続き」
+        assertEquals(List.of("click", "wait-url", "select", "click"),
+                co.steps.stream().map(s -> s.action).toList());
+        assertEquals("バッグを確認", co.steps.get(0).text);
+        assertEquals("2", co.steps.get(2).value);
         assertTrue(co.steps.stream().noneMatch(s -> s.submit)); // 默认流程里没有任何「确认下单」步骤
         List<String> texts = co.unitSteps.stream().map(s -> s.text == null ? s.action : s.text).toList();
         String pay = "一括あと払いプラン|一括払い";

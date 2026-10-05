@@ -73,7 +73,7 @@ class AutoCheckoutTest {
                   <input type="radio" name="care" id="care-plan" data-g="care" disabled><label for="care-plan">AppleCare+ 盗難・紛失プラン</label>
                   <input type="radio" name="care" id="care-no" data-g="care" disabled><label for="care-no">AppleCareによる保証を追加しない</label>
                 </div>
-                <div data-analytics-section="summary"><button id="cont" disabled onclick="rec('add-to-bag').finally(() => { location = '/bag'; })">続ける</button></div>
+                <div data-analytics-section="summary"><button id="cont" disabled onclick="rec('add-to-bag').finally(() => { location = '/attach?step=attach'; })">続ける</button></div>
                 <a href="#" onclick="rec('combo-wrong');return false">256GB 脚注 1 ブラック 239,800円</a>
                 <script>
                   function rec(n){return fetch('/rec?n='+n)}
@@ -91,6 +91,8 @@ class AutoCheckoutTest {
             ex.sendResponseHeaders(200, -1);
             ex.close();
         });
+        // 加入购物袋后 Apple 先到「配件推荐页」(step=attach)，页顶有「バッグを確認」按钮，再进购物袋
+        page("/attach", "<h1>Attach</h1><a href='/bag'>バッグを確認</a>");
         page("/exact", "<h1>Exact</h1>"
                 + "<a href='#' onclick=\"fetch('/wrong');return false\">ブラック 脚注 239,800円</a>"
                 + "<label onclick=\"fetch('/right')\">ブラック</label>");
@@ -357,7 +359,8 @@ class AutoCheckoutTest {
         assertEquals(AutoCheckout.Outcome.SUBMITTED, runShippedStepsOnRealPage("", clicked));
         // 型号 → 颜色(ブラック) → 容量(256 GB) → 下取りを利用しない → 一括払い（不是分期）→ SIMフリー → AppleCare不加 → 続ける
         assertEquals(List.of("m1", "c-black", "cap-256", "t-no", "pay-full", "sim-free", "care-no", "add-to-bag"), clicked);
-        // 加入购物袋后：数量选成 2，再点「ご注文手続き」到结算页；全程没有任何「下单」动作
+        // 加入购物袋后：配件页 →「バッグを確認」→ 购物袋 → 数量选成 2 → 点「ご注文手続き」到结算页；全程没有任何「下单」动作
+        assertTrue(hits.contains("/attach"), "加入购物袋后应先到配件推荐页: " + hits);
         assertTrue(hits.contains("/qty?v=2"), "购物袋里数量应被选为 2: " + hits);
         assertTrue(hits.contains("/checkout"), "应已走到结算页: " + hits);
         assertTrue(!hits.contains("placed"), "不能下单: " + hits);
@@ -370,6 +373,24 @@ class AutoCheckoutTest {
         assertEquals(AutoCheckout.Outcome.SUBMITTED, runShippedStepsOnRealPage("?o=simfirst", clicked));
         assertEquals(List.of("m1", "c-black", "cap-256", "t-no", "sim-free", "pay-full", "care-no", "add-to-bag"), clicked);
         assertTrue(hits.contains("/qty?v=2") && hits.contains("/checkout"), "应走到结算页: " + hits);
+    }
+
+    @Test
+    void usesAFreshBrowserProfileEachRunAndRemovesIt() throws Exception {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        AppConfig.Checkout c = cfg(false);
+        assertTrue(c.freshProfile);
+        c.steps.clear();
+        c.unitSteps = new ArrayList<>(List.of(step("goto", null, base() + "/product", false, false)));
+        // 先放一个上一次运行残留的目录，应被清掉
+        Path stale = tmp.resolve("profile-false-run-1");
+        Files.createDirectories(stale.resolve("Default"));
+        Files.writeString(stale.resolve("Default/Cookies"), "stale");
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, new AutoCheckout(c).run(event(sku("ブラック", "256GB"))));
+        try (var left = Files.list(tmp)) {
+            assertEquals(List.of(), left.map(p -> p.getFileName().toString())
+                    .filter(n -> n.startsWith("profile-false-run-")).toList(), "运行结束后不应残留任何浏览器配置文件夹");
+        }
     }
 
     @Test
