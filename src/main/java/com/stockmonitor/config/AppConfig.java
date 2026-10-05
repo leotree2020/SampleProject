@@ -1,0 +1,123 @@
+package com.stockmonitor.config;
+
+import com.stockmonitor.model.Sku;
+
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
+import java.util.Map;
+
+/** application.yml 的映射（YAML 字段使用 kebab-case，如 base-url ↔ baseUrl）。 */
+public class AppConfig {
+    public Monitor monitor = new Monitor();
+    public Http http = new Http();
+    public Proxy proxy = new Proxy();
+    public Notify notify = new Notify();
+    public Purchase purchase = new Purchase();
+
+    public static class Monitor {
+        public String region = "jp";
+        public String baseUrl = "https://www.apple.com/jp";
+        public String buyabilityPath = "/shop/buyability-message";
+        public String fulfillmentPath = "/shop/fulfillment-messages";
+        /** buyability | fulfillment | product-page */
+        public String checkMode = "buyability";
+        /** 日本邮编（如 100-0005），fulfillment 模式下用于查询配送与附近门店。 */
+        public String postalCode = "";
+        /** 门店号（如 R079 = Apple 銀座），fulfillment 模式下查询到店取货。 */
+        public List<String> stores = new ArrayList<>();
+        public Interval interval = new Interval();
+        public Retry retry = new Retry();
+        public Cooldown cooldown = new Cooldown();
+        public int concurrency = 2;
+        /** 0 = 仅在「无货→有货」时提醒一次；>0 = 持续有货时每隔该秒数重复提醒。 */
+        public long renotifySeconds = 0;
+        public String activeModel = "";
+        public Map<String, ModelPreset> models = new LinkedHashMap<>();
+    }
+
+    public static class ModelPreset {
+        public String name;
+        public String productPagePath;
+        public List<Sku> skus = new ArrayList<>();
+    }
+
+    public static class Interval {
+        public double baseSeconds = 5;
+        public double jitterSeconds = 3;
+        public double minSeconds = 2;
+    }
+
+    public static class Retry {
+        public int maxAttempts = 4;
+        public long backoffBaseMs = 1000;
+        public double backoffMultiplier = 2.0;
+        public long maxBackoffMs = 30000;
+    }
+
+    public static class Cooldown {
+        public int errorThreshold = 5;
+        public long afterConsecutiveErrorsMs = 60000;
+    }
+
+    public static class Http {
+        public int connectTimeoutSeconds = 15;
+        public int readTimeoutSeconds = 20;
+        public int writeTimeoutSeconds = 20;
+        public int maxIdleConnections = 10;
+        public int keepAliveMinutes = 5;
+        public List<String> userAgents = new ArrayList<>();
+        public Map<String, String> extraHeaders = new LinkedHashMap<>();
+    }
+
+    public static class Proxy {
+        public boolean enabled = false;
+        /** round-robin | random */
+        public String rotateStrategy = "round-robin";
+        public List<String> proxies = new ArrayList<>();
+    }
+
+    public static class Notify {
+        public boolean console = true;
+        public boolean desktop = true;
+        public boolean sound = true;
+        public String soundFile = "";
+        public Email email = new Email();
+        public Webhook webhook = new Webhook();
+    }
+
+    public static class Email {
+        public boolean enabled = false;
+        public String smtpHost = "smtp.gmail.com";
+        public int smtpPort = 465;
+        public boolean useSsl = true;
+        public String username = "";
+        public String password = "";
+        public String from = "";
+        public List<String> to = new ArrayList<>();
+        public String subject = "[在庫通知] iPhone 有货";
+    }
+
+    public static class Webhook {
+        public boolean enabled = false;
+        public boolean testOnStartup = false;
+        public String wechatWork = "";
+        public String dingtalk = "";
+        public String feishu = "";
+        public String slack = "";
+        public String discord = "";
+        public String telegramBotToken = "";
+        public String telegramChatId = "";
+    }
+
+    /** 有货后的「辅助抢购」行为：自动打开购买页，由你本人在浏览器内完成加购与结账。 */
+    public static class Purchase {
+        public boolean autoOpenBrowser = true;
+        /** 同一 SKU 每次「无货→有货」只打开一次浏览器，避免持续有货时反复弹页面。 */
+        public boolean openOncePerRestock = true;
+        /** 同时打开的最大标签页数（多个 SKU 同时到货时）。 */
+        public int maxTabsPerRound = 3;
+        /** 命中后是否停止监控该 SKU（例如只想买一台时）。 */
+        public boolean stopSkuAfterHit = false;
+    }
+}

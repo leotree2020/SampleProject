@@ -1,0 +1,120 @@
+# =====================================================================
+# iPhone Duo 库存监控 + 辅助抢购（日本 Apple Store）—— 配置示例
+# ---------------------------------------------------------------------
+# 使用方法：复制本文件为 application.yml 并修改后运行：
+#   cp application-example.yml application.yml
+# 敏感信息（邮箱密码、机器人 Token、代理账号）建议通过环境变量注入：
+#   语法：${ENV_VAR} 或 ${ENV_VAR:默认值}
+# =====================================================================
+
+monitor:
+  region: jp
+  base-url: https://www.apple.com/jp
+  buyability-path: /shop/buyability-message
+  fulfillment-path: /shop/fulfillment-messages
+  check-mode: fulfillment          # fulfillment(推荐,含配送日期+门店取货) | buyability(仅线上可购,最轻量) | product-page(HTML兜底)
+  postal-code: "100-0005"          # 你的日本邮编，用于查询配送日期与附近门店（例：东京站周边 100-0005）
+  stores:                          # 门店号，用于查询到店取货（第一个为中心，附近门店会一并返回）
+    - R079                         # Apple 銀座（其它门店号见 README「如何获取门店号」）
+  interval:
+    base-seconds: 5                # 基础检查间隔（秒）
+    jitter-seconds: 3              # 随机抖动 ±（秒）
+    min-seconds: 3                 # 间隔下限保护（秒）
+  retry:
+    max-attempts: 3
+    backoff-base-ms: 1000
+    backoff-multiplier: 2.0
+    max-backoff-ms: 30000
+  cooldown:
+    error-threshold: 5             # 连续 N 轮全部失败后进入冷却
+    after-consecutive-errors-ms: 120000
+  concurrency: 2                   # 并发检查数（修改需重启），建议 1~3
+  renotify-seconds: 300            # 0=只在「无货→有货」时提醒一次；>0=持续有货时按该秒数重复提醒
+
+  # ===== 型号预设 =====
+  active-model: iphone-duo         # 留空 = 启动时询问；也可用命令行 --model=iphone-duo 指定
+  models:
+    iphone-duo:
+      name: "iPhone Duo"
+      product-page-path: /shop/buy-iphone/iphone-duo
+      # ⚠️ 下面的部件号是占位符！请按 README「如何获取部件号」替换为真实值（日本区以 J/A 结尾）
+      skus:
+        - part-number: "MXXA1J/A"
+          name: "iPhone Duo 256GB スターホワイト"
+          color: "スターホワイト"
+          capacity: "256GB"
+          enabled: true
+        - part-number: "MXXA2J/A"
+          name: "iPhone Duo 256GB ナイトスカイ"
+          color: "ナイトスカイ"
+          capacity: "256GB"
+          enabled: true
+        - part-number: "MXXA3J/A"
+          name: "iPhone Duo 512GB スターホワイト"
+          color: "スターホワイト"
+          capacity: "512GB"
+          enabled: false
+        - part-number: "MXXA4J/A"
+          name: "iPhone Duo 512GB ナイトスカイ"
+          color: "ナイトスカイ"
+          capacity: "512GB"
+          enabled: false
+          # buy-url: "https://www.apple.com/jp/shop/buy-iphone/iphone-duo"  # 可选：有货时打开的自定义链接
+    iphone-18-pro:
+      name: "iPhone 18 Pro"
+      product-page-path: /shop/buy-iphone/iphone-18-pro
+      skus:
+        - part-number: "MXXB1J/A"
+          name: "iPhone 18 Pro 256GB"
+          capacity: "256GB"
+          enabled: true
+
+# ===== 有货后的辅助抢购 =====
+purchase:
+  auto-open-browser: true          # 有货时立刻用默认浏览器打开购买页（请提前登录 Apple ID）
+  open-once-per-restock: true      # 每次「无货→有货」只打开一次，避免持续有货时反复弹页面
+  max-tabs-per-round: 3            # 多个 SKU 同时到货时最多打开几个标签页
+  stop-sku-after-hit: false        # 命中后停止监控该 SKU
+
+http:
+  connect-timeout-seconds: 15
+  read-timeout-seconds: 20
+  write-timeout-seconds: 20
+  max-idle-connections: 10
+  keep-alive-minutes: 5
+  user-agents: []                  # 留空则使用内置的 Chrome/Safari/Edge 桌面端 UA 列表
+  extra-headers: {}                # 可选额外请求头
+
+proxy:
+  enabled: false                   # 是否启用代理（修改需重启）。在日本以外地区运行时建议使用日本节点
+  rotate-strategy: round-robin     # round-robin | random
+  proxies:                         # 支持 http 与 socks5，可带账号密码
+    - "http://127.0.0.1:7890"
+    # - "socks5://user:pass@127.0.0.1:1080"
+
+notify:
+  console: true                    # 控制台高亮提醒
+  desktop: true                    # 桌面系统通知（无图形环境自动禁用）
+  sound: true                      # 系统提示音（beep 或自定义 wav）
+  sound-file: ""                   # 可选：提示音 .wav 文件路径
+  email:
+    enabled: false
+    smtp-host: smtp.gmail.com      # Gmail 需使用「应用专用密码」
+    smtp-port: 465
+    use-ssl: true                  # true=465 隐式 SSL；false=587 STARTTLS
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    from: ${SMTP_USERNAME:}
+    to:
+      - "your-email@example.com"
+    subject: "[在庫通知] iPhone 有货"
+  webhook:
+    enabled: false
+    test-on-startup: false         # 启动时发一条测试消息验证 webhook
+    wechat-work: ""                # 企业微信群机器人 Webhook URL
+    dingtalk: ""                   # 钉钉机器人 Webhook URL
+    feishu: ""                     # 飞书机器人 Webhook URL
+    slack: ""                      # Slack Incoming Webhook URL
+    discord: ""                    # Discord Webhook URL
+    telegram-bot-token: ${TELEGRAM_BOT_TOKEN:}
+    telegram-chat-id: ${TELEGRAM_CHAT_ID:}
