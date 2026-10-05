@@ -64,9 +64,8 @@ monitor:
       name: "iPhone 18 Pro"
       product-page-path: /shop/buy-iphone/iphone-18-pro
       skus:
-        - part-number: "MXXB1J/A"
-          name: "iPhone 18 Pro 256GB"
-          capacity: "256GB"
+        - part-number: "MJR54J/A"      # 你提供的部件号（官网查到的真实值）
+          name: "iPhone 18 Pro (MJR54J/A)"
           enabled: true
 
 # ===== 有货后的辅助抢购 =====
