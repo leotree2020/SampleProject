@@ -87,4 +87,16 @@ class ParsersTest {
         assertEquals("https://www.apple.com/jp/shop/buy-iphone/iphone-duo",
                 AppleStoreClient.join("https://www.apple.com/jp/", "/shop/buy-iphone/iphone-duo"));
     }
+
+    @Test
+    void partNumberNormalizationAndValidation() {
+        String jp = "https://www.apple.com/jp";
+        assertEquals("MJR54J/A", AppleStoreClient.normalizePart(" mjr54j/a "));
+        assertTrue(AppleStoreClient.isValidPart("MJR54J/A", jp));
+        assertTrue(AppleStoreClient.isValidPart("MTUA3J/A", jp));
+        assertTrue(!AppleStoreClient.isValidPart("A3472", jp));
+        assertTrue(!AppleStoreClient.isValidPart(AppleStoreClient.normalizePart("MJR54J J/A"), jp));
+        assertTrue(!AppleStoreClient.isValidPart("MJR54CH/A", jp));
+        assertTrue(AppleStoreClient.isValidPart("MJR54CH/A", "https://www.apple.com.cn"));
+    }
 }

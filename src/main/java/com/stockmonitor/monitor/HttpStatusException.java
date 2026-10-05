@@ -25,7 +25,7 @@ public class HttpStatusException extends IOException {
 
     private static String describe(int code) {
         return switch (code) {
-            case 403, 541 -> "(疑似被风控拦截)";
+            case 403, 541 -> "(部件号无效，或被 Apple 风控拦截)";
             case 429 -> "(请求过于频繁)";
             case 404 -> "(路径或部件号不存在)";
             default -> "";

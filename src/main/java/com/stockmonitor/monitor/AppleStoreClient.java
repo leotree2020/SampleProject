@@ -42,7 +42,24 @@ public class AppleStoreClient {
         return (sku.buyUrl != null && !sku.buyUrl.isBlank()) ? sku.buyUrl : productPageUrl();
     }
 
+    /** 去掉空白并转大写，如 " mjr54j/a " → "MJR54J/A"。 */
+    static String normalizePart(String raw) {
+        return raw == null ? "" : raw.replaceAll("\\s+", "").toUpperCase(java.util.Locale.ROOT);
+    }
+
+    /** 日本站部件号为「5 位字母数字 + J/A」，如 MTUA3J/A；其它地区只做宽松校验。 */
+    static boolean isValidPart(String normalized, String baseUrl) {
+        boolean japan = baseUrl != null && baseUrl.contains("/jp");
+        return normalized.matches(japan ? "[A-Z0-9]{5}J/A" : "[A-Z0-9]{5}[A-Z]{1,2}/A");
+    }
+
     public CheckResult check(Sku sku) throws InterruptedException {
+        String part = normalizePart(sku.partNumber);
+        if (!isValidPart(part, configs.get().monitor.baseUrl)) {
+            return CheckResult.failed(sku, "部件号格式不对：「" + sku.partNumber
+                    + "」。日本区部件号应是「5 位字母数字 + J/A」，如 MTUA3J/A（注意不是 A3472 这种型号编号，中间不要有空格）", 0);
+        }
+        sku.partNumber = part;
         AppConfig.Retry retry = configs.get().monitor.retry;
         long start = System.nanoTime();
         IOException last = null;
@@ -74,10 +91,25 @@ public class AppleStoreClient {
         AppConfig.Monitor m = configs.get().monitor;
         warmUpIfNeeded();
         return switch (m.checkMode) {
-            case "fulfillment" -> FulfillmentJsonParser.parse(getJson(fulfillmentUrl(m, sku)), sku);
+            case "fulfillment" -> fulfillmentWithFallback(m, sku);
             case "product-page" -> ProductPageParser.parse(get(productPageUrl(), false), sku);
             default -> BuyabilityParser.parse(getJson(buyabilityUrl(m, sku)), sku);
         };
+    }
+
+    /** fulfillment 接口风控较严：被 403/429/541 拦截时，降级用更轻量的 buyability 再查一次。 */
+    private CheckResult fulfillmentWithFallback(AppConfig.Monitor m, Sku sku) throws IOException {
+        try {
+            return FulfillmentJsonParser.parse(getJson(fulfillmentUrl(m, sku)), sku);
+        } catch (HttpStatusException e) {
+            if (!e.throttled()) {
+                throw e;
+            }
+            log.info("{} fulfillment 被拦截（HTTP {}），降级使用 buyability 查询", sku.partNumber, e.code());
+            CheckResult r = BuyabilityParser.parse(getJson(buyabilityUrl(m, sku)), sku);
+            String note = "（fulfillment 被拦截，已降级为 buyability）";
+            return CheckResult.of(sku, r.state(), (r.detail() == null ? "" : r.detail()) + note, r.pickupStores());
+        }
     }
 
     static HttpUrl buyabilityUrl(AppConfig.Monitor m, Sku sku) {

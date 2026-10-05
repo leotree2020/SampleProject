@@ -105,7 +105,7 @@ final class SkuTableModel extends AbstractTableModel {
         switch (c) {
             case 0 -> s.enabled = (Boolean) v;
             case 1 -> s.name = String.valueOf(v).trim();
-            case 2 -> s.partNumber = String.valueOf(v).trim();
+            case 2 -> s.partNumber = String.valueOf(v).replaceAll("\\s+", "").toUpperCase(java.util.Locale.ROOT);
             default -> {
             }
         }
