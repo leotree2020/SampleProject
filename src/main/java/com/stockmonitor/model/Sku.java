@@ -21,7 +21,11 @@ public class Sku {
     }
 
     public String displayName() {
-        return (name == null || name.isBlank()) ? partNumber : name + " (" + partNumber + ")";
+        if (name == null || name.isBlank()) {
+            return partNumber;
+        }
+        // 名称里已经带了部件号时不再重复拼接
+        return partNumber == null || partNumber.isBlank() || name.contains(partNumber) ? name : name + " (" + partNumber + ")";
     }
 
     @Override

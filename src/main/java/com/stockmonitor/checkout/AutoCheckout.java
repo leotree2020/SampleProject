@@ -101,6 +101,7 @@ public class AutoCheckout {
             } catch (RuntimeException e) {
                 log.warn("自动结账在第 {} 步失败：{}（浏览器保持打开，请手动接手）", n, firstLine(e));
                 screenshot(page, sku);
+                dumpPage(page, sku);
                 holdOpen(page);
                 return Outcome.FAILED;
             }
@@ -232,6 +233,42 @@ public class AutoCheckout {
             shown = target + "（占位符为空）"; // 仅用于日志，不能因此中断流程
         }
         return (s.action == null ? "click" : s.action) + " " + shown;
+    }
+
+    /** 失败时把当前网址、页面上所有可点击元素的文字写进日志，并保存页面源码，方便对照真实按钮文字调整 steps。 */
+    private void dumpPage(Page page, Sku sku) {
+        try {
+            log.info("失败时的网址：{}", page.url());
+            List<String> texts = page.locator(CLICKABLE).allInnerTexts().stream()
+                    .map(t -> t.replaceAll("\\s+", " ").trim())
+                    .filter(t -> !t.isEmpty() && t.length() <= 60)
+                    .distinct().limit(80).toList();
+            log.info("页面上可点击的文字（共 {} 个）：{}", texts.size(), texts);
+            Path dir = Paths.get(cfg.screenshotDir);
+            Files.createDirectories(dir);
+            Path file = dir.resolve(sku.partNumber.replace('/', '_') + "-" + System.currentTimeMillis() + ".html");
+            Files.writeString(file, page.content());
+            log.info("页面源码已保存：{}", file);
+        } catch (Exception e) {
+            log.debug("保存页面信息失败：{}", e.getMessage());
+        }
+    }
+
+    /** SKU 里缺少的、步骤用到的占位符字段（如 color / capacity），开始前提醒用户填写。 */
+    public List<String> missingFields(Sku sku) {
+        List<String> missing = new java.util.ArrayList<>();
+        List<AppConfig.Step> all = new java.util.ArrayList<>(cfg.unitSteps);
+        all.addAll(cfg.steps);
+        String used = all.stream().filter(s -> !s.optional)
+                .map(s -> String.valueOf(s.text) + " " + s.selector + " " + s.value)
+                .reduce("", (a, b) -> a + " " + b);
+        if (used.contains("{color}") && (sku.color == null || sku.color.isBlank())) {
+            missing.add("颜色");
+        }
+        if (used.contains("{capacity}") && (sku.capacity == null || sku.capacity.isBlank())) {
+            missing.add("容量");
+        }
+        return missing;
     }
 
     private void screenshot(Page page, Sku sku) {

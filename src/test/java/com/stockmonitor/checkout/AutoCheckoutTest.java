@@ -209,4 +209,36 @@ class AutoCheckoutTest {
         assertEquals(7, new AutoCheckout(c).plan().size()); // 3 个步骤 × 2 台 + 1 个收尾步骤
         assertTrue(!hits.contains("placed"));
     }
+
+    @Test
+    void reportsMissingColorAndCapacity() {
+        AppConfig.Checkout c = cfg(false);
+        c.unitSteps = new ArrayList<>(List.of(
+                step("click", "{color}", null, false, false),
+                step("click", "{capacity}", null, false, false)));
+        AutoCheckout co = new AutoCheckout(c);
+        assertEquals(List.of("颜色", "容量"), co.missingFields(sku("", "")));
+        assertEquals(List.of("容量"), co.missingFields(sku("ナイトスカイ", " ")));
+        assertTrue(co.missingFields(sku("ナイトスカイ", "256GB")).isEmpty());
+        // 可选步骤用到的占位符不算缺失
+        c.unitSteps = new ArrayList<>(List.of(step("click", "{color}", null, true, false)));
+        assertTrue(new AutoCheckout(c).missingFields(sku("", "")).isEmpty());
+    }
+
+    @Test
+    void failureDumpsClickableTextsAndHtml() throws Exception {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        AppConfig.Checkout c = cfg(false);
+        c.steps.clear();
+        c.unitSteps = new ArrayList<>(List.of(
+                step("goto", null, null, false, false),
+                step("click", "不存在的按钮", null, false, false)));
+        AutoCheckout.Outcome o = new AutoCheckout(c).run(event(sku("ナイトスカイ", "256GB")));
+        assertEquals(AutoCheckout.Outcome.FAILED, o);
+        try (var files = Files.list(tmp.resolve("shots"))) {
+            List<String> names = files.map(p -> p.getFileName().toString()).toList();
+            assertTrue(names.stream().anyMatch(n -> n.endsWith(".png")), "应有截图: " + names);
+            assertTrue(names.stream().anyMatch(n -> n.endsWith(".html")), "应有页面源码: " + names);
+        }
+    }
 }

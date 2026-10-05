@@ -270,6 +270,21 @@ public final class MonitorFrame extends JFrame {
             JOptionPane.showMessageDialog(this, "没有启用的 SKU，请勾选并填写部件号。", "提示", JOptionPane.WARNING_MESSAGE);
             return;
         }
+        if (cfg.purchase.checkout.enabled) {
+            StringBuilder problems = new StringBuilder();
+            for (Sku s : configs.enabledSkus()) {
+                List<String> missing = purchase.checkout().missingFields(s);
+                if (!missing.isEmpty()) {
+                    problems.append("· ").append(s.displayName()).append("：缺少 ").append(String.join("、", missing)).append('\n');
+                }
+            }
+            if (problems.length() > 0) {
+                JOptionPane.showMessageDialog(this, "已勾选「有货时自动结账」，但下面的 SKU 还没填写自动选择需要的内容：\n\n" + problems
+                        + "\n请在表格里双击对应的格子填写（内容要和官网页面上的选项文字完全一致），或先取消勾选「有货时自动结账」。",
+                        "还不能开始", JOptionPane.WARNING_MESSAGE);
+                return;
+            }
+        }
         scheduler = Executors.newScheduledThreadPool(2, r -> {
             Thread t = new Thread(r, "scheduler");
             t.setDaemon(true);
