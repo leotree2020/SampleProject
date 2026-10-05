@@ -205,9 +205,9 @@ public class AutoCheckout {
     private BrowserContext launch(Playwright pw, boolean headless, Path profile) {
         BrowserType.LaunchPersistentContextOptions opts = new BrowserType.LaunchPersistentContextOptions()
                 .setHeadless(headless)
-                .setLocale("ja-JP")
-                .setTimezoneId("Asia/Tokyo")
-                .setViewportSize(1366, 900);
+                // 不伪造语言、时区、窗口大小：让浏览器完全使用这台电脑的真实设置，
+                // 避免它们和你的真实网络对不上而被 Apple 认为异常。
+                .setViewportSize((com.microsoft.playwright.options.ViewportSize) null);
         if (cfg.executablePath != null && !cfg.executablePath.isBlank()) {
             opts.setExecutablePath(Paths.get(cfg.executablePath));
         } else if (cfg.channel != null && !cfg.channel.isBlank()) {
