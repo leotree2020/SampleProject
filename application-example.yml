@@ -75,6 +75,51 @@ purchase:
   max-tabs-per-round: 3            # 多个 SKU 同时到货时最多打开几个标签页
   stop-sku-after-hit: false        # 命中后停止监控该 SKU
 
+  # ===== 自动结账（需先运行一次 --login，在弹出的浏览器里自己登录 Apple ID）=====
+  # 程序不读取、不保存你的密码和银行卡；只是在你已登录的浏览器窗口里按下面的 steps 依次点击。
+  # 遇到验证码 / 3D Secure 等环节，窗口会保持打开，由你接手。
+  # ⚠️ Apple 条款禁止自动下单，可能导致订单被取消或账号被限购，风险自负。
+  checkout:
+    enabled: false                 # 总开关：true 才会在有货时自动结账
+    auto-submit: false             # 最后的「确认下单」默认不点，只停在按钮前；确认流程可靠后再改为 true
+    profile-dir: data/browser-profile   # 浏览器配置文件（保存登录会话），不要提交到 git
+    headless: false                # 保持 false，方便你随时接手
+    channel: ""                    # 可选：chrome / msedge，使用本机已安装的浏览器；留空用 Playwright 自带 Chromium
+    executable-path: ""            # 可选：浏览器 exe 路径
+    default-timeout-ms: 8000
+    # 点击步骤（以下按日本站页面文字推测，务必用真实页面核对后调整）。
+    # text 是正则，匹配按钮/链接/选项上的文字；{color} {capacity} 取自 SKU 的 color / capacity 字段，
+    # 对应的字段为空时，该步骤会报错（optional: true 的步骤则直接跳过）。
+    steps:
+      - action: goto               # 打开购买页
+      - action: click              # 选颜色（SKU 里填 color，如 "ナイトスカイ"）
+        text: "{color}"
+        optional: true
+      - action: click              # 选容量（SKU 里填 capacity，如 "256GB"）
+        text: "{capacity}"
+        optional: true
+      - action: click              # 不选「下取り」
+        text: "下取りに出さない|下取りなし"
+        optional: true
+      - action: click              # 一括払い
+        text: "一括"
+        optional: true
+      - action: click              # 不加 AppleCare+
+        text: "AppleCare.*(加入しない|不要)|加入しない"
+        optional: true
+      - action: click              # 加入购物袋
+        text: "バッグに追加|カートに追加"
+      - action: wait
+        value: "1500"
+      - action: click              # 去结账
+        text: "ご注文手続き|注文手続き|チェックアウト"
+      - action: click              # 在结账页继续（如有）
+        text: "^続ける$|^次へ$"
+        optional: true
+      - action: click              # 最后一步：确认下单（仅 auto-submit: true 时才会执行）
+        text: "注文を確定|注文する|今すぐ注文"
+        submit: true
+
 http:
   connect-timeout-seconds: 15
   read-timeout-seconds: 20

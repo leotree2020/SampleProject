@@ -41,6 +41,7 @@ import java.util.concurrent.ScheduledExecutorService;
  * --test-notify 向所有已启用的提醒渠道发送一条测试消息后退出
  * --test-open   测试「有货时自动打开购买页」后退出
  * --gui         打开图形界面
+ * --login       打开浏览器，手动登录 Apple ID 并保存会话（启用自动结账前先做一次）
  */
 public final class StockMonitorApplication {
     private static final Logger log = LoggerFactory.getLogger(StockMonitorApplication.class);
@@ -53,8 +54,11 @@ public final class StockMonitorApplication {
         boolean testNotify = false;
         boolean testOpen = false;
         boolean gui = false;
+        boolean login = false;
         for (String a : args) {
-            if (a.equals("--once")) {
+            if (a.equals("--login")) {
+                login = true;
+            } else if (a.equals("--once")) {
                 once = true;
             } else if (a.equals("--test-notify")) {
                 testNotify = true;
@@ -65,7 +69,7 @@ public final class StockMonitorApplication {
             } else if (a.startsWith("--model=")) {
                 modelArg = a.substring("--model=".length());
             } else if (a.equals("-h") || a.equals("--help")) {
-                System.out.println("用法: java -jar iphone-stock-monitor.jar [application.yml] [--model=KEY] [--once] [--test-notify] [--test-open] [--gui]");
+                System.out.println("用法: java -jar iphone-stock-monitor.jar [application.yml] [--model=KEY] [--once] [--test-notify] [--test-open] [--gui] [--login]");
                 return;
             } else {
                 configPath = Path.of(a);
@@ -104,6 +108,11 @@ public final class StockMonitorApplication {
         NotificationManager notifications = new NotificationManager(cfg.notify, stats);
         PurchaseAssistant purchase = new PurchaseAssistant(cfg.purchase);
 
+        if (login) {
+            purchase.checkout().interactiveLogin(client.productPageUrl());
+            http.shutdown();
+            return;
+        }
         printBanner(configs, client, notifications, cfg);
 
         Sku demoSku = configs.enabledSkus().isEmpty() ? new Sku("TEST", "测试 SKU") : configs.enabledSkus().get(0);
@@ -205,7 +214,9 @@ public final class StockMonitorApplication {
         sb.append(String.format("   检查间隔 : %.0f±%.0f 秒（下限 %.0f 秒）%n",
                 cfg.monitor.interval.baseSeconds, cfg.monitor.interval.jitterSeconds, cfg.monitor.interval.minSeconds));
         sb.append("   提醒渠道 : ").append(String.join(" / ", notifications.channelNames())).append('\n');
-        sb.append("   有货动作 : ").append(cfg.purchase.autoOpenBrowser ? "自动打开购买页（请提前在浏览器登录 Apple ID）" : "仅提醒").append('\n');
+        sb.append("   有货动作 : ").append(cfg.purchase.checkout.enabled
+                ? "自动结账（auto-submit=" + cfg.purchase.checkout.autoSubmit + "）"
+                : cfg.purchase.autoOpenBrowser ? "自动打开购买页（请提前在浏览器登录 Apple ID）" : "仅提醒").append('\n');
         sb.append("   监控 SKU : ").append(configs.enabledSkus().size()).append(" 个\n");
         for (Sku s : configs.enabledSkus()) {
             sb.append("     - ").append(s.displayName()).append('\n');

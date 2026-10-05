@@ -22,6 +22,7 @@
         <logback.version>1.5.6</logback.version>
         <jakarta.mail.version>2.0.1</jakarta.mail.version>
         <junit.version>5.10.2</junit.version>
+        <playwright.version>1.56.0</playwright.version>
     </properties>
 
     <dependencies>
@@ -70,6 +71,13 @@
             <groupId>com.sun.mail</groupId>
             <artifactId>jakarta.mail</artifactId>
             <version>${jakarta.mail.version}</version>
+        </dependency>
+
+        <!-- 浏览器自动化（自动结账） -->
+        <dependency>
+            <groupId>com.microsoft.playwright</groupId>
+            <artifactId>playwright</artifactId>
+            <version>${playwright.version}</version>
         </dependency>
 
         <!-- 单元测试 -->

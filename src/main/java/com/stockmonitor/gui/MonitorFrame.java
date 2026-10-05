@@ -72,6 +72,9 @@ public final class MonitorFrame extends JFrame {
     private final JSpinner baseSpinner;
     private final JSpinner jitterSpinner;
     private final JCheckBox openBrowserBox = new JCheckBox("有货时自动打开购买页");
+    private final JCheckBox checkoutBox = new JCheckBox("有货时自动结账");
+    private final JCheckBox submitBox = new JCheckBox("自动提交订单");
+    private final JButton loginBtn = new JButton("登录 Apple ID");
     private final JButton startBtn = new JButton("▶ 开始监控");
     private final JButton stopBtn = new JButton("■ 停止");
     private final JButton onceBtn = new JButton("立即检查一次");
@@ -123,6 +126,10 @@ public final class MonitorFrame extends JFrame {
         top.add(jitterSpinner);
         openBrowserBox.setSelected(cfg.purchase.autoOpenBrowser);
         top.add(openBrowserBox);
+        checkoutBox.setSelected(cfg.purchase.checkout.enabled);
+        submitBox.setSelected(cfg.purchase.checkout.autoSubmit);
+        top.add(checkoutBox);
+        top.add(submitBox);
 
         JPanel buttons = new JPanel(new FlowLayout(FlowLayout.LEFT, 8, 6));
         buttons.add(startBtn);
@@ -137,6 +144,8 @@ public final class MonitorFrame extends JFrame {
         buttons.add(remove);
         buttons.add(testNotify);
         buttons.add(openPage);
+        buttons.add(Box.createHorizontalStrut(16));
+        buttons.add(loginBtn);
         stopBtn.setEnabled(false);
 
         JPanel north = new JPanel(new BorderLayout());
@@ -145,7 +154,7 @@ public final class MonitorFrame extends JFrame {
 
         table.setRowHeight(26);
         table.setFillsViewportHeight(true);
-        int[] widths = {50, 260, 120, 80, 380, 80, 70};
+        int[] widths = {50, 220, 110, 100, 70, 80, 340, 80, 70};
         for (int i = 0; i < widths.length; i++) {
             table.getColumnModel().getColumn(i).setPreferredWidth(widths[i]);
         }
@@ -199,6 +208,30 @@ public final class MonitorFrame extends JFrame {
         baseSpinner.addChangeListener(e -> cfg.monitor.interval.baseSeconds = ((Number) baseSpinner.getValue()).doubleValue());
         jitterSpinner.addChangeListener(e -> cfg.monitor.interval.jitterSeconds = ((Number) jitterSpinner.getValue()).doubleValue());
         openBrowserBox.addActionListener(e -> cfg.purchase.autoOpenBrowser = openBrowserBox.isSelected());
+        checkoutBox.addActionListener(e -> {
+            cfg.purchase.checkout.enabled = checkoutBox.isSelected();
+            if (checkoutBox.isSelected() && !java.nio.file.Files.isDirectory(Path.of(cfg.purchase.checkout.profileDir))) {
+                JOptionPane.showMessageDialog(this, "还没有保存过登录会话。请先点「登录 Apple ID」，在弹出的浏览器里登录并确认地址和支付方式。",
+                        "提示", JOptionPane.INFORMATION_MESSAGE);
+            }
+        });
+        submitBox.addActionListener(e -> {
+            if (!submitBox.isSelected()) {
+                cfg.purchase.checkout.autoSubmit = false;
+                return;
+            }
+            int ok = JOptionPane.showConfirmDialog(this,
+                    "开启后，检测到有货时程序会自动点击最后的「确认下单」，并使用你账户里已保存的支付方式扣款。\n"
+                            + "请确认：部件号、颜色、容量、配送地址和支付方式都正确，且你确实要购买。\n\n确定开启自动提交订单吗？",
+                    "确认自动提交订单", JOptionPane.YES_NO_OPTION, JOptionPane.WARNING_MESSAGE);
+            cfg.purchase.checkout.autoSubmit = ok == JOptionPane.YES_OPTION;
+            submitBox.setSelected(cfg.purchase.checkout.autoSubmit);
+        });
+        loginBtn.addActionListener(e -> {
+            Thread t = new Thread(() -> purchase.checkout().interactiveLogin(client.productPageUrl()), "apple-login");
+            t.setDaemon(true);
+            t.start();
+        });
         startBtn.addActionListener(e -> startMonitoring());
         stopBtn.addActionListener(e -> stopMonitoring());
         onceBtn.addActionListener(e -> checkOnce());

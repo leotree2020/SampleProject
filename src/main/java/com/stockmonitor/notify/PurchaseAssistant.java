@@ -1,5 +1,6 @@
 package com.stockmonitor.notify;
 
+import com.stockmonitor.checkout.AutoCheckout;
 import com.stockmonitor.config.AppConfig;
 import com.stockmonitor.model.AvailabilityEvent;
 import org.slf4j.Logger;
@@ -9,6 +10,7 @@ import java.awt.Desktop;
 import java.awt.GraphicsEnvironment;
 import java.net.URI;
 import java.util.Locale;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 /**
  * 辅助抢购：检测到有货时，立刻用默认浏览器打开购买页。
@@ -19,16 +21,51 @@ public class PurchaseAssistant {
     private static final Logger log = LoggerFactory.getLogger(PurchaseAssistant.class);
 
     private final AppConfig.Purchase cfg;
+    private final AutoCheckout checkout;
+    /** 同一时间只允许一个结账流程，避免多个 SKU 同时到货时抢同一个浏览器配置文件。 */
+    private final AtomicBoolean checkoutRunning = new AtomicBoolean();
 
     public PurchaseAssistant(AppConfig.Purchase cfg) {
         this.cfg = cfg;
+        this.checkout = new AutoCheckout(cfg.checkout);
+    }
+
+    public AutoCheckout checkout() {
+        return checkout;
     }
 
     public boolean enabled() {
-        return cfg.autoOpenBrowser;
+        return cfg.autoOpenBrowser || cfg.checkout.enabled;
     }
 
     public boolean open(AvailabilityEvent e) {
+        if (cfg.checkout.enabled && !e.test()) {
+            return startCheckout(e);
+        }
+        return openSystemBrowser(e);
+    }
+
+    private boolean startCheckout(AvailabilityEvent e) {
+        if (!checkoutRunning.compareAndSet(false, true)) {
+            log.info("已有自动结账流程在进行中，跳过 {}", e.sku().displayName());
+            return false;
+        }
+        log.info("开始自动结账：{}（auto-submit={}）", e.sku().displayName(), cfg.checkout.autoSubmit);
+        Thread t = new Thread(() -> {
+            try {
+                AutoCheckout.Outcome outcome = checkout.run(e);
+                if (outcome == AutoCheckout.Outcome.LAUNCH_FAILED) {
+                    openSystemBrowser(e); // 自动浏览器起不来时，至少用默认浏览器打开购买页
+                }
+            } finally {
+                checkoutRunning.set(false);
+            }
+        }, "auto-checkout");
+        t.start();
+        return true;
+    }
+
+    private boolean openSystemBrowser(AvailabilityEvent e) {
         String url = e.buyUrl();
         try {
             if (!GraphicsEnvironment.isHeadless() && Desktop.isDesktopSupported()

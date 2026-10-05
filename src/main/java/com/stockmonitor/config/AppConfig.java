@@ -119,5 +119,41 @@ public class AppConfig {
         public int maxTabsPerRound = 3;
         /** 命中后是否停止监控该 SKU（例如只想买一台时）。 */
         public boolean stopSkuAfterHit = false;
+        public Checkout checkout = new Checkout();
+    }
+
+    /**
+     * 自动结账：用 Playwright 驱动一个持久化的浏览器配置文件（先用 --login 手动登录一次），
+     * 到货后按 steps 依次点击。不会读取或保存你的 Apple ID 密码 / 银行卡信息。
+     */
+    public static class Checkout {
+        public boolean enabled = false;
+        /** 最后一步（submit: true）默认不执行，只停在「确认下单」按钮前；设为 true 才会真正提交订单。 */
+        public boolean autoSubmit = false;
+        public String profileDir = "data/browser-profile";
+        public boolean headless = false;
+        /** 可选：chrome / msedge，使用本机已安装的浏览器；留空使用 Playwright 自带 Chromium。 */
+        public String channel = "";
+        /** 可选：浏览器可执行文件路径（优先于 channel）。 */
+        public String executablePath = "";
+        public int defaultTimeoutMs = 8000;
+        public String screenshotDir = "data/screenshots";
+        public List<Step> steps = new ArrayList<>();
+    }
+
+    /**
+     * 结账步骤。action：goto | click | fill | press | wait | wait-url。
+     * text / value 里可用占位符 {color} {capacity} {partNumber} {name} {buyUrl}；
+     * click 的 text 是正则（匹配按钮/链接/选项文字），也可以直接给 CSS selector。
+     */
+    public static class Step {
+        public String action = "click";
+        public String text;
+        public String selector;
+        public String value;
+        public boolean optional = false;
+        /** 标记为「提交订单」步骤，仅当 auto-submit: true 时才会执行。 */
+        public boolean submit = false;
+        public int timeoutMs = 0;
     }
 }
