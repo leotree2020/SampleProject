@@ -6,6 +6,7 @@ import com.microsoft.playwright.Locator;
 import com.microsoft.playwright.Page;
 import com.microsoft.playwright.Playwright;
 import com.microsoft.playwright.options.LoadState;
+import com.microsoft.playwright.options.WaitForSelectorState;
 import com.stockmonitor.config.AppConfig;
 import com.stockmonitor.model.AvailabilityEvent;
 import com.stockmonitor.model.Sku;
@@ -220,14 +221,20 @@ public class AutoCheckout {
      * 点完后如果是单选框，还会确认它真的被选中了，否则如实报错。
      */
     private void clickWithFallback(Locator target, double timeout) {
-        try {
-            target.click(new Locator.ClickOptions().setTimeout(Math.min(timeout, 4000)));
-        } catch (RuntimeException e) {
-            log.info("正常点击没成功（{}），检查后改用脚本点击", firstLine(e));
-            Locator.EvaluateOptions opts = new Locator.EvaluateOptions().setTimeout(timeout);
-            if (Boolean.TRUE.equals(target.evaluate(IS_DISABLED_JS, null, opts))) {
-                throw new IllegalStateException("目标选项当前是灰色禁用状态（前面的选项还没选好，或页面还没加载完）");
+        long deadline = System.currentTimeMillis() + (long) timeout;
+        // 1. 等元素出现；2. 等它解锁（Apple 的页面选完上一项才解锁下一项）；3. 点击：先试 1.5 秒，不行再用脚本点击
+        target.waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.ATTACHED));
+        Locator.EvaluateOptions opts = new Locator.EvaluateOptions().setTimeout(Math.max(1000, timeout));
+        while (Boolean.TRUE.equals(target.evaluate(IS_DISABLED_JS, null, opts))) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new IllegalStateException("目标选项一直是灰色禁用状态（前面的选项还没选好，或页面还没加载完）");
             }
+            target.page().waitForTimeout(150);
+        }
+        try {
+            target.click(new Locator.ClickOptions().setTimeout(1500));
+        } catch (RuntimeException e) {
+            log.debug("正常点击没成功（{}），改用脚本点击", firstLine(e));
             target.evaluate("el => el.click()", null, opts);
         }
         target.page().waitForTimeout(250);

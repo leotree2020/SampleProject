@@ -38,13 +38,15 @@ class ConfigTest {
         assertTrue(co.enabled);
         assertFalse(co.autoSubmit);
         assertEquals(1, co.quantity);
-        assertEquals(1, co.steps.size());
+        assertEquals(2, co.steps.size());
         assertEquals("select", co.steps.get(0).action);
         assertEquals("2", co.steps.get(0).value);
+        assertEquals("click", co.steps.get(1).action);
+        assertTrue(co.steps.stream().noneMatch(s -> s.submit)); // 默认流程里没有任何「确认下单」步骤
         List<String> texts = co.unitSteps.stream().map(s -> s.text == null ? s.action : s.text).toList();
         String pay = "一括あと払いプラン|一括払い";
         assertEquals(List.of("goto", "{model}", "{color}", "{capacity}", "下取りを利用しない", pay, "SIMフリー", pay,
-                "SIMフリー", "AppleCareによる保証を追加しない", "続ける", "wait"), texts);
+                "SIMフリー", "AppleCareによる保証を追加しない", "続ける|バッグに追加", "wait"), texts);
         // 支付方式只匹配「一括」，绝不能匹配「ペイディあと払い」分期
         assertTrue(!java.util.regex.Pattern.compile(pay).matcher("ペイディあと払いプランApple専用 7,077円/月の36回払い").find());
         AppConfig.Step payStep = co.unitSteps.stream().filter(s -> pay.equals(s.text)).findFirst().orElseThrow();

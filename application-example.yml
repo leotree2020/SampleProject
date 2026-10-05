@@ -125,19 +125,22 @@ purchase:
       - action: click              # AppleCareによる保証を追加しない
         within: "[data-analytics-section='applecare']"
         text: "AppleCareによる保証を追加しない"
-      - action: click              # 続ける（进入结算页面）
+      - action: click              # 页面底部的按钮：选项没选全时叫「続ける」（灰色），全部选好后会变成「バッグに追加」，两种都匹配
         within: "[data-analytics-section='summary']"
-        text: "続ける"
+        text: "続ける|バッグに追加"
       - action: wait
         value: "1500"
-    # steps：选完配置、进入购物袋/结算页面后只执行一次。默认只做一件事：把数量下拉框选成 2（同一账号最多买 2 台，
-    # 只买 1 台就把 value 改成 "1" 或删掉这一步）。之后停在结算页面，由你自己核对并下单。
-    # 找不到数量下拉框时，程序会截图并停下，由你手动改数量。
+    # steps：加入购物袋、进入购物袋页面后只执行一次：先把数量下拉框选成 2（同一账号最多买 2 台，
+    # 只买 1 台就把 value 改成 "1" 或删掉这一步），再点「ご注文手続き」进入结算页面。
+    # 到结算页面为止，不会下单；登录、核对地址和付款方式、确认下单都由你本人完成。
+    # 找不到数量下拉框或按钮时，程序会截图、把页面上所有可点的文字写进日志并停下，由你手动继续。
     # 标记 submit: true 的步骤只有在 auto-submit: true 时才会执行。
     steps:
       - action: select             # 购物袋里的「数量」下拉框，选 2
         selector: "select[name*='quantity' i], select[id*='quantity' i], select[aria-label*='数量'], select[aria-label*='quantity' i]"
         value: "2"
+      - action: click              # 去结账（进入结算页面）
+        text: "ご注文手続き|注文手続き|チェックアウト"
 
 http:
   connect-timeout-seconds: 15

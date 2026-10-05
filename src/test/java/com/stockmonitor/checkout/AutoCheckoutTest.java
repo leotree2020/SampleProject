@@ -73,17 +73,17 @@ class AutoCheckoutTest {
                   <input type="radio" name="care" id="care-plan" data-g="care" disabled><label for="care-plan">AppleCare+ 盗難・紛失プラン</label>
                   <input type="radio" name="care" id="care-no" data-g="care" disabled><label for="care-no">AppleCareによる保証を追加しない</label>
                 </div>
-                <div data-analytics-section="summary"><button id="cont" disabled onclick="rec('continue')">続ける</button></div>
+                <div data-analytics-section="summary"><button id="cont" disabled onclick="rec('add-to-bag').finally(() => { location = '/bag'; })">続ける</button></div>
                 <a href="#" onclick="rec('combo-wrong');return false">256GB 脚注 1 ブラック 239,800円</a>
                 <script>
-                  function rec(n){fetch('/rec?n='+n)}
+                  function rec(n){return fetch('/rec?n='+n)}
                   const simFirst = new URLSearchParams(location.search).get('o') === 'simfirst';
                   const order = simFirst ? ['m','c','cap','t','sim','pay','care'] : ['m','c','cap','t','pay','sim','care'];
                   document.querySelectorAll('input[type=radio]').forEach(i => i.addEventListener('change', () => {
                     rec(i.id);
                     const next = order[order.indexOf(i.dataset.g) + 1];
                     if (next) { document.querySelectorAll('input[data-g=' + next + ']').forEach(x => x.disabled = false); }
-                    else { document.getElementById('cont').disabled = false; }
+                    else { const b = document.getElementById('cont'); b.disabled = false; b.textContent = 'バッグに追加'; }
                   }));
                 </script>""");
         server.createContext("/rec", ex -> {
@@ -342,8 +342,7 @@ class AutoCheckoutTest {
         c.profileDir = base.profileDir;
         c.screenshotDir = base.screenshotDir;
         c.defaultTimeoutMs = 3000;
-        c.steps.clear(); // 购物袋里的数量下拉框在这个模拟页面上不存在
-        c.unitSteps.get(0).value = base() + "/real" + query;
+        c.unitSteps.get(0).value = base() + "/real" + query; // 整套配置（含购物袋里选数量、点「ご注文手続き」）一起跑
         Sku sku = sku("ブラック", "256GB");
         sku.model = "iPhone 18 Pro";
         AutoCheckout.Outcome o = new AutoCheckout(c).run(event(sku));
@@ -357,7 +356,11 @@ class AutoCheckoutTest {
         List<String> clicked = new ArrayList<>();
         assertEquals(AutoCheckout.Outcome.SUBMITTED, runShippedStepsOnRealPage("", clicked));
         // 型号 → 颜色(ブラック) → 容量(256 GB) → 下取りを利用しない → 一括払い（不是分期）→ SIMフリー → AppleCare不加 → 続ける
-        assertEquals(List.of("m1", "c-black", "cap-256", "t-no", "pay-full", "sim-free", "care-no", "continue"), clicked);
+        assertEquals(List.of("m1", "c-black", "cap-256", "t-no", "pay-full", "sim-free", "care-no", "add-to-bag"), clicked);
+        // 加入购物袋后：数量选成 2，再点「ご注文手続き」到结算页；全程没有任何「下单」动作
+        assertTrue(hits.contains("/qty?v=2"), "购物袋里数量应被选为 2: " + hits);
+        assertTrue(hits.contains("/checkout"), "应已走到结算页: " + hits);
+        assertTrue(!hits.contains("placed"), "不能下单: " + hits);
     }
 
     @Test
@@ -365,7 +368,8 @@ class AutoCheckoutTest {
         Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
         List<String> clicked = new ArrayList<>();
         assertEquals(AutoCheckout.Outcome.SUBMITTED, runShippedStepsOnRealPage("?o=simfirst", clicked));
-        assertEquals(List.of("m1", "c-black", "cap-256", "t-no", "sim-free", "pay-full", "care-no", "continue"), clicked);
+        assertEquals(List.of("m1", "c-black", "cap-256", "t-no", "sim-free", "pay-full", "care-no", "add-to-bag"), clicked);
+        assertTrue(hits.contains("/qty?v=2") && hits.contains("/checkout"), "应走到结算页: " + hits);
     }
 
     @Test
