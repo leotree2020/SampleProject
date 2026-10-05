@@ -43,7 +43,7 @@ class ConfigTest {
         assertEquals("2", co.steps.get(0).value);
         List<String> texts = co.unitSteps.stream().map(s -> s.text == null ? s.action : s.text).toList();
         assertEquals(List.of("goto", "{color}", "{capacity}", "下取りを利用しない", "SIMフリー",
-                "一括あと払いプラン", "AppleCareによる保証を追加しない", "続ける", "wait"), texts);
+                "あと払いプラン", "AppleCareによる保証を追加しない", "続ける", "wait"), texts);
         assertEquals("R079", cfg.monitor.stores.get(0));
     }
 }

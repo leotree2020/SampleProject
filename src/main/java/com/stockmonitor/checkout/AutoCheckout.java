@@ -74,10 +74,12 @@ public class AutoCheckout {
             Page page = ctx.pages().isEmpty() ? ctx.newPage() : ctx.pages().get(0);
             page.setDefaultTimeout(cfg.defaultTimeoutMs);
             int n = 0;
+            AppConfig.Step current = null;
             List<AppConfig.Step> plan = plan();
             try {
                 for (AppConfig.Step step : plan) {
                     n++;
+                    current = step;
                     if (step.submit && !cfg.autoSubmit) {
                         log.warn("已执行到最后一步（第 {} 步 {}），但 auto-submit=false，停在下单前。请在浏览器中手动确认下单！",
                                 n, describe(step, sku, event));
@@ -99,7 +101,8 @@ public class AutoCheckout {
                 holdOpen(page);
                 return Outcome.SUBMITTED;
             } catch (RuntimeException e) {
-                log.warn("自动结账在第 {} 步失败：{}（浏览器保持打开，请手动接手）", n, firstLine(e));
+                log.warn("自动结账在第 {}/{} 步失败，这一步要找的是【{}】：{}（浏览器保持打开，请手动接手）",
+                        n, plan.size(), current == null ? "" : describe(current, sku, event), firstLine(e));
                 screenshot(page, sku);
                 dumpPage(page, sku);
                 holdOpen(page);
@@ -174,7 +177,7 @@ public class AutoCheckout {
                 page.navigate(url);
                 page.waitForLoadState(LoadState.DOMCONTENTLOADED);
             }
-            case "click" -> locator(page, step, sku, event).click(new Locator.ClickOptions().setTimeout(timeout));
+            case "click" -> clickWithFallback(locator(page, step, sku, event), timeout);
             case "fill" -> locator(page, step, sku, event)
                     .fill(expand(step.value, sku, event, false), new Locator.FillOptions().setTimeout(timeout));
             case "select" -> locator(page, step, sku, event)
@@ -192,8 +195,28 @@ public class AutoCheckout {
         if (step.selector != null && !step.selector.isBlank()) {
             return page.locator(expand(step.selector, sku, event, false)).first();
         }
-        Pattern text = Pattern.compile(expand(step.text, sku, event, true));
-        return page.locator(CLICKABLE).filter(new Locator.FilterOptions().setHasText(text)).first();
+        String raw = expand(step.text, sku, event, true);
+        Locator contains = page.locator(CLICKABLE)
+                .filter(new Locator.FilterOptions().setHasText(Pattern.compile(raw))).first();
+        // 同一个词常同时出现在选项按钮和「容量 + 颜色 + 价格」的组合项里：优先点文字完全等于它的那个
+        Locator exact = page.locator(CLICKABLE)
+                .filter(new Locator.FilterOptions().setHasText(Pattern.compile("^\\s*(?:" + raw + ")\\s*$"))).first();
+        try {
+            exact.waitFor(new Locator.WaitForOptions().setTimeout(1500));
+            return exact;
+        } catch (RuntimeException e) {
+            return contains;
+        }
+    }
+
+    /** 先正常点击；被遮挡、点不动时改用脚本触发点击。 */
+    private void clickWithFallback(Locator target, double timeout) {
+        try {
+            target.click(new Locator.ClickOptions().setTimeout(Math.min(timeout, 4000)));
+        } catch (RuntimeException e) {
+            log.info("正常点击没成功（{}），改用脚本点击", firstLine(e));
+            target.evaluate("el => el.click()", null, new Locator.EvaluateOptions().setTimeout(timeout));
+        }
     }
 
     /** 展开占位符；asRegex=true 时对替换值做 quote，避免颜色 / 容量里的特殊字符破坏正则。 */

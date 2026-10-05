@@ -88,8 +88,8 @@ purchase:
         text: "下取りを利用しない"
       - action: click              # SIMフリー
         text: "SIMフリー"
-      - action: click              # 一括あと払いプランApple専用
-        text: "一括あと払いプラン"
+      - action: click              # 「あと払いプランApple専用」（18 Pro 页面上写作「ペイディあと払いプランApple専用」，Duo 写作「一括あと払いプランApple専用」，这样两种都能匹配）
+        text: "あと払いプラン"
       - action: click              # AppleCareによる保証を追加しない
         text: "AppleCareによる保証を追加しない"
       - action: click              # 続ける（进入结算页面）

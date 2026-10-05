@@ -39,6 +39,36 @@ class AutoCheckoutTest {
                 + "<label role='radio' onclick=\"fetch('/picked-color')\">ナイトスカイ</label>"
                 + "<label role='radio' onclick=\"fetch('/picked-capacity')\">256GB</label>"
                 + "<button onclick=\"location='/bag?added=1'\">バッグに追加</button>");
+        page("/real", "<h1>iPhone 18 Proを購入</h1>"
+                + "<button>詳細を表示</button>"
+                + "<label onclick=\"rec('color')\">バーガンディ</label><label onclick=\"rec('wrong-color')\">ブラック</label>"
+                + "<label onclick=\"rec('cap')\">256GB <sup>脚注 1</sup> 219,800円から 、または6,105円/月 月額 の36回払いから</label>"
+                + "<label onclick=\"rec('wrong-cap')\">512GB <sup>脚注 1</sup> 254,800円から</label>"
+                + "<button onclick=\"rec('tradein')\">下取りを利用しない</button>"
+                + "<label onclick=\"rec('sim')\">SIMフリー あとで通信キャリアと接続する</label>"
+                + "<label onclick=\"rec('pay')\">ペイディあと払いプランApple専用 金利0%の分割払いで購入できます。</label>"
+                + "<button onclick=\"rec('care')\">AppleCareによる保証を追加しない</button>"
+                + "<button onclick=\"rec('continue')\">続ける</button>"
+                + "<a onclick=\"rec('combo-wrong')\">256GB 脚注 1 ブラック 239,800円</a>"
+                + "<script>function rec(n){fetch('/rec?n='+n)}</script>");
+        server.createContext("/rec", ex -> {
+            hits.add(ex.getRequestURI().toString());
+            ex.sendResponseHeaders(200, -1);
+            ex.close();
+        });
+        page("/exact", "<h1>Exact</h1>"
+                + "<a href='#' onclick=\"fetch('/wrong');return false\">ブラック 脚注 239,800円</a>"
+                + "<label onclick=\"fetch('/right')\">ブラック</label>");
+        page("/covered", "<h1>Covered</h1>"
+                + "<button onclick=\"fetch('/forced')\">押せないボタン</button>"
+                + "<div style='position:fixed;inset:0;background:transparent'></div>");
+        for (String p : new String[]{"/right", "/wrong", "/forced"}) {
+            server.createContext(p, ex -> {
+                hits.add(p);
+                ex.sendResponseHeaders(200, -1);
+                ex.close();
+            });
+        }
         page("/bag", "<h1>Bag</h1>"
                 + "<select name='quantity' aria-label='数量' onchange=\"fetch('/qty?v='+this.value)\">"
                 + "<option value='1'>1</option><option value='2'>2</option></select>"
@@ -240,5 +270,51 @@ class AutoCheckoutTest {
             assertTrue(names.stream().anyMatch(n -> n.endsWith(".png")), "应有截图: " + names);
             assertTrue(names.stream().anyMatch(n -> n.endsWith(".html")), "应有页面源码: " + names);
         }
+    }
+
+    @Test
+    void prefersElementWhoseTextIsExactlyTheLabel() {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        AppConfig.Checkout c = cfg(false);
+        c.steps.clear();
+        c.unitSteps = new ArrayList<>(List.of(
+                step("goto", null, base() + "/exact", false, false),
+                step("click", "ブラック", null, false, false)));
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, new AutoCheckout(c).run(event(sku("ブラック", "256GB"))));
+        assertTrue(hits.contains("/right") && !hits.contains("/wrong"), "应点中文字完全相同的那个: " + hits);
+    }
+
+    @Test
+    void fallsBackToScriptClickWhenCovered() {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        AppConfig.Checkout c = cfg(false);
+        c.steps.clear();
+        c.unitSteps = new ArrayList<>(List.of(
+                step("goto", null, base() + "/covered", false, false),
+                step("click", "押せないボタン", null, false, false)));
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, new AutoCheckout(c).run(event(sku("ブラック", "256GB"))));
+        assertTrue(hits.contains("/forced"), "被遮挡时应改用脚本点击: " + hits);
+    }
+
+    @Test
+    void shippedStepsWorkOnPageWithRealAppleTexts() throws Exception {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        AppConfig parsed = com.stockmonitor.config.ConfigManager.parse(
+                Files.readString(Path.of("application-example.yml"), StandardCharsets.UTF_8));
+        AppConfig.Checkout c = parsed.purchase.checkout;
+        AppConfig.Checkout base = cfg(false);
+        c.headless = true;
+        c.executablePath = base.executablePath;
+        c.profileDir = base.profileDir;
+        c.screenshotDir = base.screenshotDir;
+        c.defaultTimeoutMs = 3000;
+        c.steps.clear(); // 购物袋里的数量下拉框在这个模拟页面上不存在
+        c.unitSteps.get(0).value = base() + "/real";
+        Sku sku = sku("ブラック", "256GB");
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, new AutoCheckout(c).run(event(sku)));
+        List<String> clicked = hits.stream().filter(h -> h.startsWith("/rec")).toList();
+        // ブラック 这一步点的应该是文字恰好为「ブラック」的那个选项，容量则点「256GB…」选项，而不是下面的组合项
+        assertEquals(List.of("/rec?n=wrong-color", "/rec?n=cap", "/rec?n=tradein", "/rec?n=sim",
+                "/rec?n=pay", "/rec?n=care", "/rec?n=continue"), clicked);
     }
 }
