@@ -176,6 +176,8 @@ public class AutoCheckout {
             case "click" -> locator(page, step, sku, event).click(new Locator.ClickOptions().setTimeout(timeout));
             case "fill" -> locator(page, step, sku, event)
                     .fill(expand(step.value, sku, event, false), new Locator.FillOptions().setTimeout(timeout));
+            case "select" -> locator(page, step, sku, event)
+                    .selectOption(expand(step.value, sku, event, false), new Locator.SelectOptionOptions().setTimeout(timeout));
             case "press" -> locator(page, step, sku, event)
                     .press(step.value, new Locator.PressOptions().setTimeout(timeout));
             case "wait" -> page.waitForTimeout(Long.parseLong(step.value == null ? "500" : step.value));

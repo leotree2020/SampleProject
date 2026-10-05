@@ -147,7 +147,7 @@ public class AppConfig {
     }
 
     /**
-     * 结账步骤。action：goto | click | fill | press | wait | wait-url。
+     * 结账步骤。action：goto | click | fill | select（下拉框，需 selector，value 为要选的值）| press | wait | wait-url。
      * text / value 里可用占位符 {color} {capacity} {partNumber} {name} {buyUrl}；
      * click 的 text 是正则（匹配按钮/链接/选项文字），也可以直接给 CSS selector。
      */

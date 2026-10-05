@@ -37,8 +37,10 @@ class ConfigTest {
         AppConfig.Checkout co = cfg.purchase.checkout;
         assertTrue(co.enabled);
         assertFalse(co.autoSubmit);
-        assertEquals(2, co.quantity);
-        assertTrue(co.steps.isEmpty());
+        assertEquals(1, co.quantity);
+        assertEquals(1, co.steps.size());
+        assertEquals("select", co.steps.get(0).action);
+        assertEquals("2", co.steps.get(0).value);
         List<String> texts = co.unitSteps.stream().map(s -> s.text == null ? s.action : s.text).toList();
         assertEquals(List.of("goto", "{color}", "{capacity}", "下取りを利用しない", "SIMフリー",
                 "一括あと払いプラン", "AppleCareによる保証を追加しない", "続ける", "wait"), texts);

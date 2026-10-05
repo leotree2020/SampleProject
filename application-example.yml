@@ -73,7 +73,7 @@ purchase:
     channel: ""                    # 可选：chrome / msedge，使用本机已安装的浏览器；留空用 Playwright 自带 Chromium
     executable-path: ""            # 可选：浏览器 exe 路径
     default-timeout-ms: 8000
-    quantity: 2                    # 买几台：下面 unit-steps 会重复这么多遍（同一账号最多 2 台，请填 1 或 2）
+    quantity: 1                    # unit-steps（选配流程）重复几遍。买 2 台时保持 1：选一次配置，再在购物袋页面把数量选成 2（见下面 steps）
     # 点击步骤。text 是正则，匹配按钮/选项上的文字；{color} {capacity} 取自 SKU 的 color / capacity 字段。
     # 某一步找不到按钮时，程序会截图并停下，浏览器窗口保持打开，由你接手。
     #
@@ -96,9 +96,14 @@ purchase:
         text: "続ける"
       - action: wait
         value: "1500"
-    # steps：所有台数选完后只执行一次。默认留空 = 停在结算页面，由你自己核对并下单。
-    # 如需继续自动点击，在这里加步骤；标记 submit: true 的步骤只有在 auto-submit: true 时才会执行。
-    steps: []
+    # steps：选完配置、进入购物袋/结算页面后只执行一次。默认只做一件事：把数量下拉框选成 2（同一账号最多买 2 台，
+    # 只买 1 台就把 value 改成 "1" 或删掉这一步）。之后停在结算页面，由你自己核对并下单。
+    # 找不到数量下拉框时，程序会截图并停下，由你手动改数量。
+    # 标记 submit: true 的步骤只有在 auto-submit: true 时才会执行。
+    steps:
+      - action: select             # 购物袋里的「数量」下拉框，选 2
+        selector: "select[name*='quantity' i], select[id*='quantity' i], select[aria-label*='数量'], select[aria-label*='quantity' i]"
+        value: "2"
 
 http:
   connect-timeout-seconds: 15

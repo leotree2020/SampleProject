@@ -39,7 +39,15 @@ class AutoCheckoutTest {
                 + "<label role='radio' onclick=\"fetch('/picked-color')\">ナイトスカイ</label>"
                 + "<label role='radio' onclick=\"fetch('/picked-capacity')\">256GB</label>"
                 + "<button onclick=\"location='/bag?added=1'\">バッグに追加</button>");
-        page("/bag", "<h1>Bag</h1><a href='/checkout'>ご注文手続きへ</a>");
+        page("/bag", "<h1>Bag</h1>"
+                + "<select name='quantity' aria-label='数量' onchange=\"fetch('/qty?v='+this.value)\">"
+                + "<option value='1'>1</option><option value='2'>2</option></select>"
+                + "<a href='/checkout'>ご注文手続きへ</a>");
+        server.createContext("/qty", ex -> {
+            hits.add(ex.getRequestURI().toString());
+            ex.sendResponseHeaders(200, -1);
+            ex.close();
+        });
         page("/checkout", "<h1>Checkout</h1><button onclick=\"fetch('/placed');document.body.append('done')\">注文を確定</button>");
         for (String p : new String[]{"/picked-color", "/picked-capacity"}) {
             server.createContext(p, ex -> {
@@ -158,6 +166,31 @@ class AutoCheckoutTest {
         assertThrows(IllegalStateException.class, () -> AutoCheckout.expand("{color}", ev.sku(), ev, true));
         assertEquals("256GB", AutoCheckout.expand("{capacity}", ev.sku(), ev, true));
         assertEquals("iPhone 18 Pro \\(256GB\\)", AutoCheckout.jsQuote("iPhone 18 Pro (256GB)"));
+    }
+
+    @Test
+    void selectsQuantityTwoOnBagPage() {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        AppConfig.Checkout c = cfg(false);
+        c.steps.clear();
+        c.unitSteps = new ArrayList<>(List.of(
+                step("goto", null, null, false, false),
+                step("click", "バッグに追加", null, false, false)));
+        c.steps = new ArrayList<>(List.of(
+                selectStep("select[name*='quantity' i], select[aria-label*='数量']", "2"),
+                step("click", "ご注文手続き", null, false, false)));
+        AutoCheckout.Outcome o = new AutoCheckout(c).run(event(sku("ナイトスカイ", "256GB")));
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, o);
+        assertTrue(hits.contains("/qty?v=2"), "购物袋里的数量应被选为 2: " + hits);
+        assertEquals(1, hits.stream().filter("/product"::equals).count(), "只需选一次配置");
+    }
+
+    private static AppConfig.Step selectStep(String selector, String value) {
+        AppConfig.Step s = new AppConfig.Step();
+        s.action = "select";
+        s.selector = selector;
+        s.value = value;
+        return s;
     }
 
     @Test
