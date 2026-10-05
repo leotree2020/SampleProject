@@ -161,6 +161,11 @@ public class AppConfig {
         public boolean optional = false;
         /** 标记为「提交订单」步骤，仅当 auto-submit: true 时才会执行。 */
         public boolean submit = false;
+        /**
+         * 半自动：程序把这个按钮用红框标出来并响铃，由你本人点击，点完（页面跳转或按钮消失）再继续后面的步骤。
+         * 适合某一步在被程序控制的窗口里点不通时使用（仅对 click 有效）。
+         */
+        public boolean manual = false;
         public int timeoutMs = 0;
     }
 }

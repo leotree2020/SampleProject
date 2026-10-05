@@ -373,6 +373,36 @@ class AutoCheckoutTest {
     }
 
     @Test
+    void manualStepWaitsForTheHumanThenContinues() {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        // 模拟「人」：页面自己在 2 秒后点击按钮
+        page("/human", "<h1>Human</h1><button id='b' onclick=\"fetch('/picked-color').finally(()=>{location='/bag'})\">バッグに追加</button>"
+                + "<script>setTimeout(() => document.getElementById('b').click(), 2000)</script>");
+        AppConfig.Checkout c = cfg(false);
+        c.steps.clear();
+        AppConfig.Step add = step("click", "バッグに追加", null, false, false);
+        add.manual = true;
+        c.unitSteps = new ArrayList<>(List.of(step("goto", null, base() + "/human", false, false), add,
+                step("wait-url", null, "/bag([/?#]|$)", false, false)));
+        assertEquals(AutoCheckout.Outcome.SUBMITTED, new AutoCheckout(c).run(event(sku("ブラック", "256GB"))));
+        assertEquals(1L, hits.stream().filter("/picked-color"::equals).count(), "只应被点击一次（由「人」点）: " + hits);
+        assertTrue(hits.contains("/bag"), "点完后应继续到购物袋: " + hits);
+    }
+
+    @Test
+    void failsClearlyWhenAddToBagLandsOnA404() {
+        Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
+        page("/atb404", "<h1>Product</h1><button onclick=\"location='/notfound-page'\">バッグに追加</button>");
+        AppConfig.Checkout c = cfg(false);
+        c.steps.clear();
+        c.unitSteps = new ArrayList<>(List.of(step("goto", null, base() + "/atb404", false, false),
+                step("click", "バッグに追加", null, false, false),
+                step("wait-url", null, "/bag([/?#]|$)", false, false)));
+        c.unitSteps.get(2).timeoutMs = 2000;
+        assertEquals(AutoCheckout.Outcome.FAILED, new AutoCheckout(c).run(event(sku("ブラック", "256GB"))));
+    }
+
+    @Test
     void clickingADisabledOptionFailsHonestly() {
         Assumptions.assumeTrue(chromium() != null, "没有可用的 Chromium，跳过");
         AppConfig.Checkout c = cfg(false);

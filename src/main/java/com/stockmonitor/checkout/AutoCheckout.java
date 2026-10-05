@@ -178,7 +178,14 @@ public class AutoCheckout {
                 page.navigate(url);
                 page.waitForLoadState(LoadState.DOMCONTENTLOADED);
             }
-            case "click" -> clickWithFallback(locator(page, step, sku, event), timeout);
+            case "click" -> {
+                Locator target = locator(page, step, sku, event);
+                if (step.manual) {
+                    waitForHumanClick(page, target, timeout, describe(step, sku, event));
+                } else {
+                    clickWithFallback(target, timeout);
+                }
+            }
             case "fill" -> locator(page, step, sku, event)
                     .fill(expand(step.value, sku, event, false), new Locator.FillOptions().setTimeout(timeout));
             case "select" -> locator(page, step, sku, event)
@@ -211,6 +218,49 @@ public class AutoCheckout {
         }
     }
 
+    /** 半自动：标出按钮、响铃，等你自己点（页面地址变化或按钮消失即视为已点），最多等 3 分钟。 */
+    private void waitForHumanClick(Page page, Locator target, double timeout, String what) {
+        target.waitFor(new Locator.WaitForOptions().setTimeout(timeout).setState(WaitForSelectorState.ATTACHED));
+        long deadline = System.currentTimeMillis() + 180_000;
+        // 先等它可点（页面上前面的选项都选好了才会解锁）
+        while (Boolean.TRUE.equals(target.evaluate(IS_DISABLED_JS, null, new Locator.EvaluateOptions().setTimeout(2000)))) {
+            if (System.currentTimeMillis() > deadline) {
+                throw new IllegalStateException("等了 3 分钟，按钮一直是灰色的");
+            }
+            page.waitForTimeout(200);
+        }
+        String before = page.url();
+        try {
+            target.evaluate("el => { el.scrollIntoView({block: 'center'}); el.style.outline = '5px solid red'; el.style.outlineOffset = '3px'; }",
+                    null, new Locator.EvaluateOptions().setTimeout(2000));
+        } catch (RuntimeException ignored) {
+        }
+        log.warn("【请你现在手动点击红框里的按钮】{}", what);
+        for (int i = 0; i < 3; i++) {
+            try {
+                java.awt.Toolkit.getDefaultToolkit().beep();
+            } catch (Throwable ignored) {
+            }
+            page.waitForTimeout(250);
+        }
+        while (System.currentTimeMillis() < deadline) {
+            if (!before.equals(page.url())) {
+                log.info("检测到你已点击（页面已跳转），继续后面的步骤");
+                return;
+            }
+            try {
+                if (target.count() == 0) {
+                    log.info("检测到你已点击（按钮已消失），继续后面的步骤");
+                    return;
+                }
+            } catch (RuntimeException e) {
+                return;
+            }
+            page.waitForTimeout(300);
+        }
+        throw new IllegalStateException("等了 3 分钟，还没有检测到你点击：" + what);
+    }
+
     private static final String IS_DISABLED_JS =
             "el => { const c = el.control || el; return !!(c.disabled || c.getAttribute('aria-disabled') === 'true'); }";
     private static final String IS_UNCHECKED_RADIO_JS =
@@ -232,7 +282,9 @@ public class AutoCheckout {
             target.page().waitForTimeout(150);
         }
         try {
-            target.click(new Locator.ClickOptions().setTimeout(1500));
+            // noWaitAfter：点击发出后立刻返回，不等页面跳转。否则「バッグに追加」这类会跳转的按钮可能被误判为超时，
+            // 再补点一次，让一次性令牌（atbtoken）被用两次而得到 404。
+            target.click(new Locator.ClickOptions().setTimeout(1500).setNoWaitAfter(true));
         } catch (RuntimeException e) {
             log.debug("正常点击没成功（{}），改用脚本点击", firstLine(e));
             target.evaluate("el => el.click()", null, opts);
@@ -295,7 +347,13 @@ public class AutoCheckout {
     /** 失败时把当前网址、页面上所有可点击元素的文字写进日志，并保存页面源码，方便对照真实按钮文字调整 steps。 */
     private void dumpPage(Page page, Sku sku) {
         try {
+            String title = page.title();
             log.info("失败时的网址：{}", page.url());
+            log.info("失败时的页面标题：{}", title);
+            if (title != null && (title.contains("Page Not Found") || title.contains("見つかりません"))) {
+                log.warn("Apple 返回了「找不到页面」(404)：上一步的点击被 Apple 拒绝了，不是页面上缺按钮。"
+                        + "可以把那一步设为 manual: true，由你自己点这一下。");
+            }
             List<String> texts = page.locator(CLICKABLE).allInnerTexts().stream()
                     .map(t -> t.replaceAll("\\s+", " ").trim())
                     .filter(t -> !t.isEmpty() && t.length() <= 60)
