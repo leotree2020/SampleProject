@@ -1,0 +1,3 @@
+# generated trajectories (keep the committed ones under examples/)
+trajectories/
+__pycache__/

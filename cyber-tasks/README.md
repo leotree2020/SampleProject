@@ -23,6 +23,13 @@ environment is built around.
 |----|----------|-------|------------|
 | [task-001-record-parser](./task-001-record-parser) | C | stack buffer overflow (CWE-787/120) | easy |
 
+## Tooling
+
+[`tools/`](./tools) runs an attempt at a task, scores the candidate patch
+against a non-gameable verifier, and records the full **trajectory** as JSONL —
+the data-collection loop that turns a solved task into a reusable asset. See
+[tools/README.md](./tools/README.md) and [tools/SCHEMA.md](./tools/SCHEMA.md).
+
 ## Conventions
 
 ```
