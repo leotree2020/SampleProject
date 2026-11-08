@@ -1,0 +1,28 @@
+{
+  "id": "task-001-record-parser",
+  "title": "Length-prefixed record parser: unchecked copy into a fixed stack buffer",
+  "language": "c",
+  "cwe": ["CWE-787", "CWE-120", "CWE-125"],
+  "vulnerability_class": "stack buffer overflow",
+  "difficulty": "easy",
+  "injected": true,
+  "source": "original, self-contained, no third-party code",
+  "entrypoint": "parse_record",
+  "sanitizers": ["address", "undefined"],
+  "pov": {
+    "file": "pov/crash.bin",
+    "generator": "pov/make_pov.sh",
+    "description": "first byte 0xFF (declared length 255) followed by 255 payload bytes",
+    "triggers_on": "vuln",
+    "silent_on": "fixed"
+  },
+  "verifier": "verify.sh",
+  "pass_criteria": [
+    "shared unit tests pass on both the vulnerable and fixed builds",
+    "PoV aborts the vulnerable build under AddressSanitizer",
+    "PoV exits cleanly on the fixed build"
+  ],
+  "expected_fix": "bounds-check the declared length against sizeof(buf) and against the remaining input length before memcpy",
+  "agent_task": "Given only the vulnerable build and its (passing) unit tests, find the memory-safety bug reachable from parse_record, produce an input that triggers it, and submit a patch that makes verify.sh report VERIFIED.",
+  "license": "see repository root"
+}
