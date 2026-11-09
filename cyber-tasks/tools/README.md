@@ -17,6 +17,7 @@ Agent/solver runs task  →  scorer verifies  →  trajectory persisted  →  hu
 |------|------|
 | `trajectory.py` | `TrajectoryRecorder`: append-only JSONL writer (stdlib only) |
 | `run_task.py`   | scorer + recorder CLI (the agent-facing reward) |
+| `reproduce.py`  | "reproduce before you submit" harness for real targets |
 | `SCHEMA.md`     | the trajectory format (v1.0) |
 | `examples/`     | a committed reference trajectory |
 
@@ -69,3 +70,31 @@ from a script or a model, so nothing else changes.
 > Note: when the attempt is driven by a hosted model, check that model's terms
 > before reusing the resulting trajectory as training data for other systems —
 > see the risks section of the monetization doc.
+
+## reproduce.py — reproduce before you submit
+
+The same verifier discipline, pointed at a **real source-available target** you
+are authorized to test (open source you can clone, your own code, or a program
+whose scope covers it). It builds the target under ASan/UBSan, confirms a
+candidate input crashes it, classifies the crash, **minimizes** the input, and
+emits a DRAFT submission report + the minimized PoC + a trajectory.
+
+```bash
+python3 reproduce.py \
+    --target ../task-001-record-parser/vuln/parser.c \
+    --driver ../task-001-record-parser/harness/pov_runner.c \
+    --include ../task-001-record-parser/include \
+    --input  ../task-001-record-parser/pov/crash.bin \
+    --out reports/demo --minimize
+```
+
+Why it matters in 2026: bounty platforms now penalize unverified AI-generated
+submissions (Bugcrowd suspends accounts for AI-attributable unvalidated reports;
+HackerOne makes you responsible for validating AI-assisted findings). A report
+that ships with a minimized, deterministically-reproducing PoC is exactly what
+survives triage. **Never submit what this harness could not reproduce.**
+
+> SCOPE: only point this at code you are authorized to test. It runs the
+> target's own code locally under a sanitizer — it must not touch any live
+> third-party system. Outputs are DRAFTS; a human confirms scope, impact, and
+> the program's AI-disclosure rules before anything is submitted.

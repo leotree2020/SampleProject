@@ -1,3 +1,5 @@
 # generated trajectories (keep the committed ones under examples/)
 trajectories/
+# generated reproduction reports + PoCs
+reports/
 __pycache__/
