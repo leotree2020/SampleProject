@@ -17,9 +17,23 @@ Agent/solver runs task  →  scorer verifies  →  trajectory persisted  →  hu
 |------|------|
 | `trajectory.py` | `TrajectoryRecorder`: append-only JSONL writer (stdlib only) |
 | `run_task.py`   | scorer + recorder CLI (the agent-facing reward) |
+| `fuzz.py`       | find candidate crashes, dedup, chain into `reproduce.py` |
 | `reproduce.py`  | "reproduce before you submit" harness for real targets |
 | `SCHEMA.md`     | the trajectory format (v1.0) |
 | `examples/`     | a committed reference trajectory |
+
+## The bug-bounty pipeline
+
+```
+seeds ─► fuzz.py ─► crashing inputs ─► reproduce.py ─► minimized PoC + DRAFT report
+         (find)        (dedup)          (confirm+shrink)     (human verifies scope,
+                                                              impact, AI-disclosure,
+                                                              then submits)
+```
+
+`fuzz.py` and `reproduce.py` target **source-available code you are authorized
+to test**; everything runs locally under a sanitizer and never touches a live
+third-party system.
 
 ## Scorer vs. task self-check
 
@@ -98,3 +112,32 @@ survives triage. **Never submit what this harness could not reproduce.**
 > target's own code locally under a sanitizer — it must not touch any live
 > third-party system. Outputs are DRAFTS; a human confirms scope, impact, and
 > the program's AI-disclosure rules before anything is submitted.
+
+## fuzz.py — find the candidates
+
+```bash
+python3 fuzz.py \
+    --target ../task-001-record-parser/vuln/parser.c \
+    --driver ../task-001-record-parser/harness/pov_runner.c \
+    --include ../task-001-record-parser/include \
+    --seconds 10 --reproduce
+```
+
+Engines:
+
+- **`builtin`** (default): a dependency-free mutational fuzzer that drives a
+  file-reading driver built with gcc + ASan/UBSan. Works anywhere gcc does, but
+  is **coverage-blind** — good for shallow bugs and smoke tests, not a real
+  campaign. (On task-001 it finds the overflow in well under a second.)
+- **`libfuzzer`**: `--engine libfuzzer --fuzz-harness harness/fuzz_harness.c`,
+  for environments with clang + the compiler-rt fuzzer/asan runtimes. Use this
+  for real coverage-guided campaigns.
+
+With `--reproduce`, each unique crash signature is handed to `reproduce.py` for
+minimization + a DRAFT report automatically. Output lands under `findings/`
+(gitignored): `findings/crashes/` (one input per unique signature) and
+`findings/reports/<sig>/` (report.md + poc.bin + trajectory.jsonl).
+
+> For real depth, point `fuzz.py` (libfuzzer engine) or a proper AFL++/libFuzzer
+> campaign at a target that already ships an OSS-Fuzz harness, then let
+> `reproduce.py` turn each crash into a submission-ready draft.

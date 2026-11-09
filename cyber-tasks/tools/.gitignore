@@ -2,4 +2,6 @@
 trajectories/
 # generated reproduction reports + PoCs
 reports/
+# fuzzer output (crashes, per-crash reports, trajectory)
+findings/
 __pycache__/

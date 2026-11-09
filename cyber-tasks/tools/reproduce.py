@@ -64,6 +64,13 @@ CWE_HINTS = [
      ("double free", "CWE-415")),
     (re.compile(r"AddressSanitizer:\s*SEGV|SUMMARY:.*SEGV|signal 11"),
      ("null/invalid pointer dereference", "CWE-476 / CWE-787")),
+    # ASan sometimes names the access category "unknown-crash" for an
+    # out-of-bounds access it cannot attribute to a specific redzone; the
+    # WRITE/READ-of-size line is the real signal.
+    (re.compile(r"WRITE of size \d+"),
+     ("out-of-bounds write", "CWE-787")),
+    (re.compile(r"READ of size \d+"),
+     ("out-of-bounds read", "CWE-125")),
     (re.compile(r"stack smashing detected"),
      ("stack smashing (canary)", "CWE-787 / CWE-121")),
     (re.compile(r"buffer overflow detected"),
