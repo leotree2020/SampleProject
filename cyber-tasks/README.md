@@ -30,6 +30,13 @@ against a non-gameable verifier, and records the full **trajectory** as JSONL �
 the data-collection loop that turns a solved task into a reusable asset. See
 [tools/README.md](./tools/README.md) and [tools/SCHEMA.md](./tools/SCHEMA.md).
 
+## Playbook
+
+[BOUNTY-PLAYBOOK.md](./BOUNTY-PLAYBOOK.md) — a step-by-step checklist for using
+the pipeline (fuzz → reproduce → report) to do authorized bug-bounty work on
+source-available targets: scope/authorization, target selection, installing a
+real fuzzing engine, running the tools, human triage, and disclosure.
+
 ## Conventions
 
 ```
