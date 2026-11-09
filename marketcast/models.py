@@ -47,7 +47,7 @@ def _members(model: str) -> List[str]:
     return [model]
 
 
-def _fit_predict(model: str, X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame) -> np.ndarray:
+def fit_predict(model: str, X_train: pd.DataFrame, y_train: pd.Series, X_test: pd.DataFrame) -> np.ndarray:
     """训练并返回测试集上涨概率；集成模型取各成员平均。"""
     if y_train.nunique() < 2:  # 训练集只有一个类别时无法训练，退化为该类别的频率
         return np.full(len(X_test), float(y_train.iloc[0]))
@@ -91,7 +91,7 @@ def walk_forward(ds: Dataset, model: str = ENSEMBLE, n_splits: int = 5) -> Valid
     for train_idx, test_idx in tscv.split(X):
         X_tr, y_tr = X.iloc[train_idx], y.iloc[train_idx]
         X_te, y_te = X.iloc[test_idx], y.iloc[test_idx]
-        p = _fit_predict(model, X_tr, y_tr, X_te)
+        p = fit_predict(model, X_tr, y_tr, X_te)
         oof.iloc[test_idx] = p
         majority = int(y_tr.mean() >= 0.5)
         baseline_hits += int((y_te == majority).sum())
@@ -127,7 +127,7 @@ class Forecast:
 
 def predict_latest(ds: Dataset, model: str = ENSEMBLE, top_k: int = 6) -> Forecast:
     """用全部有标签数据训练，预测最新一根K线之后 horizon 期上涨的概率。"""
-    proba = float(_fit_predict(model, ds.X, ds.y, ds.X_latest)[0])
+    proba = float(fit_predict(model, ds.X, ds.y, ds.X_latest)[0])
 
     # 用随机森林的特征重要性做可解释性参考
     rf = MODEL_FACTORIES["random_forest"]()
